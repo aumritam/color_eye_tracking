@@ -1,0 +1,5 @@
+1. Unzip, open this folder in a terminal:   cd color_eye_tracking
+2. Start the server:                         python3 -m http.server 8000
+3. Open http://localhost:8000 in Chrome and hard refresh (Cmd+Shift+R)
+4. Click "Start eye tracking", allow the camera, click each red dot 5 times.
+Keep the terminal open while using the app (closing it stops the server).

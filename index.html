@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eye-Tracking Color Identifier</title>
+
+  <!-- Load a fixed WebGazer version instead of the changing master branch -->
+  <script src="https://cdn.jsdelivr.net/npm/webgazer@3.5.3/dist/webgazer.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 16px;
+      background: #fff;
+      color: #171717;
+    }
+
+    #gc {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .main-area {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .sidebar {
+      flex: 0 0 270px;
+      background: #f7f9fa;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .sidebar h3 {
+      margin-top: 0;
+      font-size: 16px;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 6px;
+    }
+
+    .sidebar ol {
+      padding-left: 20px;
+      margin: 8px 0;
+    }
+
+    .sidebar li {
+      margin-bottom: 8px;
+    }
+
+    .bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin: 8px 0;
+      flex-wrap: wrap;
+    }
+
+    #sw {
+      width: 56px;
+      height: 56px;
+      flex: 0 0 56px;
+      border-radius: 10px;
+      border: 1px solid #888;
+      background: #fff;
+    }
+
+    #nm {
+      font-size: 22px;
+      font-weight: 650;
+    }
+
+    #hx {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #666;
+      font-size: 13px;
+    }
+
+    button {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid #888;
+      cursor: pointer;
+      background: #f4f4f4;
+      font-weight: 650;
+    }
+
+    button.primary {
+      background: #e8f0fe;
+      color: #1a73e8;
+      border-color: #1a73e8;
+    }
+
+    button.stop {
+      background: #fdecea;
+      color: #b3261e;
+      border-color: #b3261e;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    #st {
+      font-size: 13px;
+      color: #a52222;
+      margin: 8px 0;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid #bbb;
+      touch-action: manipulation;
+    }
+
+    .dot {
+      position: fixed;
+      padding: 0;
+      width: 26px;
+      height: 26px;
+      margin: -13px 0 0 -13px;
+      border-radius: 50%;
+      background: #e53935;
+      border: 3px solid #fff;
+      box-shadow: 0 0 0 1px #000;
+      cursor: pointer;
+      z-index: 99999;
+    }
+
+    #gz {
+      position: fixed;
+      border-radius: 50%;
+      border: 2px solid #000;
+      background: rgba(255, 255, 255, 0.35);
+      pointer-events: none;
+      z-index: 99998;
+      display: none;
+      transform: translate(-50%, -50%);
+    }
+
+    /* Camera preview, pinned to the bottom-right corner.
+       Width and height are NOT set here on purpose: WebGazer sizes the video,
+       face mesh and green guide box itself (see PREVIEW_W / PREVIEW_H in the
+       script), and overriding that is what pushed the green box off to the side. */
+    #webgazerVideoContainer {
+      position: fixed !important;
+      top: auto !important;
+      left: auto !important;
+      bottom: 12px !important;
+      right: 12px !important;
+      border-radius: 8px !important;
+      outline: 2px solid #333 !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+      z-index: 99990 !important;
+      overflow: hidden !important;
+    }
+
+    .hint {
+      color: #555;
+      font-size: 12px;
+    }
+
+    @media (max-width: 850px) {
+      .panel {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        flex: 1 1 auto;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="gc">
+    <div class="panel">
+
+      <main class="main-area">
+        <div class="bar">
+          <div id="sw" aria-label="Current color preview"></div>
+
+          <div>
+            <div id="nm">Hover over a color to identify it</div>
+            <div id="hx"></div>
+          </div>
+        </div>
+
+        <div class="bar">
+          <button id="go" class="primary">Start eye tracking</button>
+
+          <button id="tomouse" disabled>Back to mouse tracking</button>
+
+          <button id="recal">Recalibrate</button>
+
+          <label>
+            Image:
+            <input type="file" id="up" accept="image/*">
+          </label>
+
+          <label>
+            Radius
+            <input type="range" id="rad" min="20" max="100" value="45">
+          </label>
+
+          <label>
+            <input type="checkbox" id="mouse" checked>
+            Mouse test mode
+          </label>
+
+          <label>
+            <input type="checkbox" id="showgz" checked>
+            Gaze ring
+          </label>
+        </div>
+
+        <div id="st" role="status" aria-live="polite">
+          Mouse test mode is active. Hover over the canvas to test color naming.
+        </div>
+
+        <canvas
+          id="cv"
+          width="910"
+          height="520"
+          aria-label="Color palette and uploaded image canvas">
+        </canvas>
+
+        <p class="hint">
+          To use eye tracking, click Start eye tracking, allow camera access,
+          and complete calibration. After calibration, look at the canvas
+          without moving your mouse.
+        </p>
+      </main>
+
+      <aside class="sidebar">
+        <h3>Instructions</h3>
+
+        <ol>
+          <li>
+            <strong>Test the colors:</strong>
+            Move your mouse over the palette.
+          </li>
+
+          <li>
+            <strong>Start eye tracking:</strong>
+            Click the blue button and allow camera access.
+          </li>
+
+          <li>
+            <strong>Calibrate:</strong>
+            Look directly at each red dot and click it five times.
+            Keep your head relatively still.
+          </li>
+
+          <li>
+            <strong>Test your gaze:</strong>
+            Once calibration finishes, look around the canvas without
+            moving your mouse.
+          </li>
+
+          <li>
+            <strong>Switch or stop:</strong>
+            Use <em>Back to mouse tracking</em> to compare against your
+            cursor (the same button switches back to your eyes), or
+            <em>Stop eye tracking</em> to pause. Resuming keeps your
+            calibration.
+          </li>
+        </ol>
+
+        <p class="hint">
+          Webcam access requires HTTPS or a supported localhost address.
+          Eye-tracking accuracy depends on lighting, camera position,
+          and calibration.
+        </p>
+      </aside>
+
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const $ = id => document.getElementById(id);
+
+      const cv = $("cv");
+      const ctx = cv.getContext("2d", {
+        willReadFrequently: true
+      });
+
+      const status = message => {
+        $("st").textContent = message;
+      };
+
+      // --------------------------------------------------
+      // 1. DRAW THE INITIAL COLOR PALETTE
+      // --------------------------------------------------
+
+      function drawPalette() {
+        const cols = 7;
+        const rows = 4;
+        const w = cv.width / cols;
+        const h = cv.height / rows;
+
+        const lightness = [80, 62, 46, 30];
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            ctx.fillStyle = c < 6
+              ? `hsl(${c * 60}, 75%, ${lightness[r]}%)`
+              : `hsl(0, 0%, ${95 - r * 30}%)`;
+
+            ctx.fillRect(
+              c * w,
+              r * h,
+              w + 1,
+              h + 1
+            );
+          }
+        }
+      }
+
+      drawPalette();
+
+      // --------------------------------------------------
+      // 2. UPLOAD AN IMAGE
+      // --------------------------------------------------
+
+      $("up").addEventListener("change", event => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        const image = new Image();
+
+        image.onload = () => {
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 0, cv.width, cv.height);
+
+          const scale = Math.min(
+            cv.width / image.width,
+            cv.height / image.height
+          );
+
+          const width = image.width * scale;
+          const height = image.height * scale;
+
+          ctx.drawImage(
+            image,
+            (cv.width - width) / 2,
+            (cv.height - height) / 2,
+            width,
+            height
+          );
+
+          URL.revokeObjectURL(image.src);
+
+          status(
+            "Image loaded. Hover over it or look at it to identify colors."
+          );
+        };
+
+        image.onerror = () => {
+          status("Could not load that image. Please choose another image.");
+        };
+
+        image.src = URL.createObjectURL(file);
+      });
+
+      // --------------------------------------------------
+      // 3. COLOR NAME REFERENCE PALETTE
+      // --------------------------------------------------
+
+      const NAMES = [
+        ["Black", "000000"],
+        ["White", "ffffff"],
+        ["Light gray", "cfcfcf"],
+        ["Gray", "808080"],
+        ["Dark gray", "404040"],
+        ["Slate", "708090"],
+        ["Red", "e53935"],
+        ["Dark red", "8b0000"],
+        ["Crimson", "dc143c"],
+        ["Maroon", "800000"],
+        ["Rust", "b7410e"],
+        ["Salmon", "fa8072"],
+        ["Coral", "ff7f50"],
+        ["Pink", "ff8fb1"],
+        ["Hot pink", "ff1493"],
+        ["Magenta", "ff00ff"],
+        ["Orange", "ff9800"],
+        ["Burnt orange", "cc5500"],
+        ["Peach", "ffcba4"],
+        ["Brown", "8b5a2b"],
+        ["Chocolate", "5c3317"],
+        ["Tan", "d2b48c"],
+        ["Sand", "e2c9a0"],
+        ["Beige", "f5f5dc"],
+        ["Cream", "fffdd0"],
+        ["Khaki", "c3b091"],
+        ["Gold", "ffd700"],
+        ["Yellow", "ffeb3b"],
+        ["Lemon", "fff176"],
+        ["Olive", "808000"],
+        ["Lime", "bfff00"],
+        ["Light green", "90ee90"],
+        ["Green", "4caf50"],
+        ["Forest green", "228b22"],
+        ["Dark green", "006400"],
+        ["Mint", "98ffcc"],
+        ["Teal", "008080"],
+        ["Dusty teal", "4a8c8a"],
+        ["Turquoise", "40e0d0"],
+        ["Aqua", "00ffff"],
+        ["Sky blue", "87ceeb"],
+        ["Light blue", "add8e6"],
+        ["Blue", "2196f3"],
+        ["Steel blue", "4682b4"],
+        ["Royal blue", "4169e1"],
+        ["Navy", "000080"],
+        ["Indigo", "4b0082"],
+        ["Violet", "8a2be2"],
+        ["Purple", "800080"],
+        ["Lavender", "e6e6fa"],
+        ["Lilac", "c8a2c8"],
+        ["Plum", "dda0dd"],
+        ["Mauve", "e0b0ff"]
+      ];
+
+      // --------------------------------------------------
+      // 4. CONVERT RGB COLORS TO CIELAB
+      // This helps us compare colors perceptually.
+      // --------------------------------------------------
+
+      function rgbToLab(r, g, b) {
+        [r, g, b] = [r, g, b].map(value => {
+          value /= 255;
+
+          return value > 0.04045
+            ? Math.pow((value + 0.055) / 1.055, 2.4)
+            : value / 12.92;
+        });
+
+        let x = (
+          r * 0.4124 +
+          g * 0.3576 +
+          b * 0.1805
+        ) / 0.95047;
+
+        let y =
+          r * 0.2126 +
+          g * 0.7152 +
+          b * 0.0722;
+
+        let z = (
+          r * 0.0193 +
+          g * 0.1192 +
+          b * 0.9505
+        ) / 1.08883;
+
+        [x, y, z] = [x, y, z].map(value =>
+          value > 0.008856
+            ? Math.cbrt(value)
+            : 7.787 * value + 16 / 116
+        );
+
+        return [
+          116 * y - 16,
+          500 * (x - y),
+          200 * (y - z)
+        ];
+      }
+
+      const LAB = NAMES.map(([name, hex]) => [
+        name,
+        rgbToLab(
+          parseInt(hex.slice(0, 2), 16),
+          parseInt(hex.slice(2, 4), 16),
+          parseInt(hex.slice(4, 6), 16)
+        )
+      ]);
+
+      function nameOf(r, g, b) {
+        const [L, A, B] = rgbToLab(r, g, b);
+
+        let best = "Unknown";
+        let bestDistance = Infinity;
+
+        for (const [name, lab] of LAB) {
+          const [l, a, bb] = lab;
+
+          const distance =
+            (L - l) ** 2 +
+            (A - a) ** 2 +
+            (B - bb) ** 2;
+
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = name;
+          }
+        }
+
+        return best;
+      }
+
+      // --------------------------------------------------
+      // 5. DISPLAY A COLOR
+      // --------------------------------------------------
+
+      function showColor(r, g, b) {
+        const red = Math.round(r);
+        const green = Math.round(g);
+        const blue = Math.round(b);
+
+        const hex = "#" + [red, green, blue]
+          .map(value => value.toString(16).padStart(2, "0"))
+          .join("");
+
+        $("sw").style.background = hex;
+        $("nm").textContent = nameOf(red, green, blue);
+
+        $("hx").textContent =
+          `${hex}   rgb(${red}, ${green}, ${blue})`;
+      }
+
+      // --------------------------------------------------
+      // 6. SAMPLE THE COLOR AROUND A SCREEN POSITION
+      // --------------------------------------------------
+
+      function sampleAtClientPosition(clientX, clientY) {
+        const rect = cv.getBoundingClientRect();
+
+        // Keep the gaze ring on screen at all times, even when the gaze
+        // leaves the canvas (clamped to the visible window).
+        const ringEl = $("gz");
+        const ringRadius = Number($("rad").value);
+
+        ringEl.style.display = $("showgz").checked ? "block" : "none";
+        ringEl.style.left =
+          Math.min(Math.max(clientX, 0), window.innerWidth) + "px";
+        ringEl.style.top =
+          Math.min(Math.max(clientY, 0), window.innerHeight) + "px";
+        ringEl.style.width = (2 * ringRadius * rect.width / cv.width) + "px";
+        ringEl.style.height = (2 * ringRadius * rect.height / cv.height) + "px";
+
+        if (
+          clientX < rect.left ||
+          clientX > rect.right ||
+          clientY < rect.top ||
+          clientY > rect.bottom
+        ) {
+          $("nm").textContent = "(look at the canvas)";
+          $("hx").textContent = "";
+          return;
+        }
+
+        // Convert screen coordinates to canvas pixel coordinates.
+        const scaleX = cv.width / rect.width;
+        const scaleY = cv.height / rect.height;
+
+        const x = (clientX - rect.left) * scaleX;
+        const y = (clientY - rect.top) * scaleY;
+
+        const radius = Number($("rad").value);
+        const ring = $("gz");
+
+        ring.style.display = $("showgz").checked
+          ? "block"
+          : "none";
+
+        ring.style.left = clientX + "px";
+        ring.style.top = clientY + "px";
+
+        ring.style.width = (2 * radius / scaleX) + "px";
+        ring.style.height = (2 * radius / scaleY) + "px";
+
+        const x0 = Math.max(0, Math.floor(x - radius));
+        const y0 = Math.max(0, Math.floor(y - radius));
+
+        const x1 = Math.min(cv.width, Math.ceil(x + radius));
+        const y1 = Math.min(cv.height, Math.ceil(y + radius));
+
+        const width = x1 - x0;
+        const height = y1 - y0;
+
+        if (width < 1 || height < 1) return;
+
+        const pixels = ctx.getImageData(
+          x0,
+          y0,
+          width,
+          height
+        ).data;
+
+        const reds = [];
+        const greens = [];
+        const blues = [];
+
+        // Collect pixels inside a circle around the gaze position.
+        for (let row = 0; row < height; row++) {
+          for (let col = 0; col < width; col++) {
+            const dx = x0 + col - x;
+            const dy = y0 + row - y;
+
+            if (dx * dx + dy * dy > radius * radius) {
+              continue;
+            }
+
+            const p = (row * width + col) * 4;
+
+            reds.push(pixels[p]);
+            greens.push(pixels[p + 1]);
+            blues.push(pixels[p + 2]);
+          }
+        }
+
+        if (!reds.length) return;
+
+        // Median reduces the influence of individual noisy pixels.
+        const median = values => {
+          values.sort((a, b) => a - b);
+          return values[Math.floor(values.length / 2)];
+        };
+
+        showColor(
+          median(reds),
+          median(greens),
+          median(blues)
+        );
+      }
+
+      // --------------------------------------------------
+      // 7. MOUSE TEST MODE
+      // --------------------------------------------------
+
+      document.addEventListener("mousemove", event => {
+        if ($("mouse").checked) {
+          sampleAtClientPosition(
+            event.clientX,
+            event.clientY
+          );
+        }
+      });
+
+      const gazeRing = document.createElement("div");
+      gazeRing.id = "gz";
+      document.body.appendChild(gazeRing);
+
+      // --------------------------------------------------
+      // 8. EYE-TRACKING STATE
+      // --------------------------------------------------
+
+      let webgazerStarted = false;
+      let calibrated = false;
+
+      const gazeBuffer = [];
+      const BUFFER_SIZE = 5;
+
+      // --------------------------------------------------
+      // 9. RECEIVE GAZE PREDICTIONS FROM WEBGAZER
+      // --------------------------------------------------
+
+      function onGaze(data) {
+        if (
+          !data ||
+          !Number.isFinite(data.x) ||
+          !Number.isFinite(data.y)
+        ) {
+          return;
+        }
+
+        // Do not use gaze predictions until calibration finishes.
+        if (!calibrated || $("mouse").checked) {
+          return;
+        }
+
+        gazeBuffer.push({
+          x: data.x,
+          y: data.y
+        });
+
+        if (gazeBuffer.length > BUFFER_SIZE) {
+          gazeBuffer.shift();
+        }
+
+        // Average recent predictions to reduce jitter.
+        const x = gazeBuffer.reduce(
+          (sum, point) => sum + point.x,
+          0
+        ) / gazeBuffer.length;
+
+        const y = gazeBuffer.reduce(
+          (sum, point) => sum + point.y,
+          0
+        ) / gazeBuffer.length;
+
+        sampleAtClientPosition(x, y);
+      }
+
+      // --------------------------------------------------
+      // 10. CALIBRATION
+      // --------------------------------------------------
+
+      // The calibration dots are laid out as a grid over the canvas only,
+      // so every training sample comes from the area you actually look at.
+      // More rows = better accuracy vertically (webcam tracking is weakest
+      // when you look down). Change these three numbers to taste.
+      const CAL_COLS = 3;
+      const CAL_ROWS = 4;
+      const CAL_INSET = 30; // pixels between the outer dots and the canvas edge
+
+      // The part of the canvas that is actually visible in the window.
+      function calibrationArea() {
+        const rect = cv.getBoundingClientRect();
+
+        return {
+          left: Math.max(rect.left, 0) + CAL_INSET,
+          right: Math.min(rect.right, window.innerWidth) - CAL_INSET,
+          top: Math.max(rect.top, 0) + CAL_INSET,
+          bottom: Math.min(rect.bottom, window.innerHeight) - CAL_INSET
+        };
+      }
+
+      function calibrate() {
+        calibrated = false;
+
+        // Mouse mode stays on during calibration.
+        $("mouse").checked = true;
+
+        gazeBuffer.length = 0;
+
+        document.querySelectorAll(".dot").forEach(dot => {
+          dot.remove();
+        });
+
+        status(
+          "Calibration: the red dots cover the canvas. Look at each one and click it five times. Keep your head still."
+        );
+
+        // Make sure the whole canvas is on screen before placing the dots.
+        if (typeof cv.scrollIntoView === "function") {
+          cv.scrollIntoView({
+            block: "center",
+            inline: "nearest",
+            behavior: "instant"
+          });
+        }
+
+        const area = calibrationArea();
+        const targets = [];
+
+        for (let row = 0; row < CAL_ROWS; row++) {
+          for (let col = 0; col < CAL_COLS; col++) {
+            targets.push([
+              area.left + (area.right - area.left) * col / (CAL_COLS - 1),
+              area.top + (area.bottom - area.top) * row / (CAL_ROWS - 1)
+            ]);
+          }
+        }
+
+        let remaining = targets.length;
+
+        targets.forEach(([xPixels, yPixels]) => {
+          const dot = document.createElement("button");
+
+          dot.type = "button";
+          dot.className = "dot";
+          dot.setAttribute(
+            "aria-label",
+            "Calibration target"
+          );
+
+          dot.style.left = xPixels + "px";
+          dot.style.top = yPixels + "px";
+
+          let clicks = 0;
+
+          dot.addEventListener("click", () => {
+            clicks++;
+
+            dot.style.opacity = String(
+              Math.max(0.15, 1 - clicks * 0.17)
+            );
+
+            if (clicks >= 5) {
+              dot.remove();
+              remaining--;
+
+              if (remaining === 0) {
+                calibrated = true;
+
+                // Switch from mouse sampling to gaze sampling.
+                $("mouse").checked = false;
+
+                gazeBuffer.length = 0;
+
+                status(
+                  "Calibration finished. Look at the canvas without moving your mouse, and keep the canvas where it was during calibration."
+                );
+
+                updateUI();
+              }
+            }
+          });
+
+          document.body.appendChild(dot);
+        });
+
+        // Refresh the buttons now that the calibration dots exist.
+        updateUI();
+      }
+
+      // --------------------------------------------------
+      // 10b. START / STOP / MOUSE-MODE CONTROLS
+      // --------------------------------------------------
+
+      // true while WebGazer is actively predicting (false when paused)
+      let running = false;
+
+      function clearDots() {
+        document.querySelectorAll(".dot").forEach(dot => {
+          dot.remove();
+        });
+      }
+
+      // Size of the camera preview in the corner (4:3, matching the webcam).
+      const PREVIEW_W = 180;
+      const PREVIEW_H = 135;
+
+      // Show or hide the whole camera preview: video, face mesh dots and the
+      // green guide box. WebGazer's own showVideoPreview(false) permanently
+      // overwrites its internal "show" flags, so showVideoPreview(true) can
+      // never bring the preview back. Setting each part directly avoids that.
+      function setPreviewVisible(visible) {
+        const gaze = window.webgazer;
+
+        if (!gaze) return;
+
+        if (typeof gaze.showVideo === "function") {
+          gaze.showVideo(visible);
+        }
+
+        if (typeof gaze.showFaceOverlay === "function") {
+          gaze.showFaceOverlay(visible);
+        }
+
+        if (typeof gaze.showFaceFeedbackBox === "function") {
+          gaze.showFaceFeedbackBox(visible);
+        }
+      }
+
+      // Safety net: while eye tracking is running, the preview should always
+      // be on screen. If anything hides it, bring it back.
+      setInterval(() => {
+        if (!webgazerStarted || !running) return;
+
+        const gaze = window.webgazer;
+        const box = document.getElementById("webgazerVideoContainer");
+
+        if (!gaze || !gaze.params || !box) return;
+
+        const style = window.getComputedStyle(box);
+
+        const hidden =
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.opacity === "0";
+
+        if (
+          hidden ||
+          !gaze.params.showVideo ||
+          !gaze.params.showFaceOverlay ||
+          !gaze.params.showFaceFeedbackBox
+        ) {
+          setPreviewVisible(true);
+        }
+      }, 500);
+
+      function updateUI() {
+        const go = $("go");
+        const toggle = $("tomouse");
+
+        const calibrating = document.querySelector(".dot") !== null;
+        const mouseOn = $("mouse").checked;
+
+        // Main button: Start -> Stop -> Resume
+        if (!webgazerStarted) {
+          go.textContent = "Start eye tracking";
+        } else if (running) {
+          go.textContent = "Stop eye tracking";
+        } else {
+          go.textContent = "Resume eye tracking";
+        }
+
+        const showStop = webgazerStarted && running;
+        go.classList.toggle("stop", showStop);
+        go.classList.toggle("primary", !showStop);
+
+        // Second button: Back to mouse tracking <-> Switch to eye tracking
+        if (!webgazerStarted || !running) {
+          toggle.textContent = "Back to mouse tracking";
+          toggle.disabled = true;
+        } else if (mouseOn && !calibrating) {
+          toggle.textContent = calibrated
+            ? "Switch to eye tracking"
+            : "Calibrate eye tracking";
+          toggle.disabled = false;
+        } else {
+          toggle.textContent = "Back to mouse tracking";
+          toggle.disabled = false;
+        }
+      }
+
+      function stopTracking() {
+        clearDots();
+
+        const gaze = window.webgazer;
+
+        if (gaze) {
+          try {
+            gaze.pause();
+
+            setPreviewVisible(false);
+          } catch (error) {
+            console.warn("Could not pause WebGazer:", error);
+          }
+        }
+
+        running = false;
+        gazeBuffer.length = 0;
+
+        // Mouse mode takes over while eye tracking is stopped.
+        $("mouse").checked = true;
+
+        status(
+          "Eye tracking stopped. Mouse tracking is active. Click Resume eye tracking to continue."
+        );
+
+        updateUI();
+      }
+
+      function resumeTracking() {
+        const gaze = window.webgazer;
+
+        if (!gaze) return;
+
+        try {
+          setPreviewVisible(true);
+
+          // Not awaited: resume() starts WebGazer's prediction loop.
+          const result = gaze.resume();
+
+          if (result && typeof result.catch === "function") {
+            result.catch(error => console.warn("Resume warning:", error));
+          }
+
+          running = true;
+          gazeBuffer.length = 0;
+
+          if (calibrated) {
+            $("mouse").checked = false;
+
+            status(
+              "Eye tracking resumed with your previous calibration. Look at the canvas without moving your mouse."
+            );
+
+            updateUI();
+          } else {
+            calibrate();
+          }
+        } catch (error) {
+          console.error("Resume failed:", error);
+          status("Could not resume eye tracking: " + error.message);
+        }
+      }
+
+      $("tomouse").addEventListener("click", () => {
+        if (!webgazerStarted || !running) return;
+
+        const calibrating = document.querySelector(".dot") !== null;
+
+        if ($("mouse").checked && !calibrating) {
+          // Currently on mouse -> go back to eyes.
+          if (calibrated) {
+            gazeBuffer.length = 0;
+            $("mouse").checked = false;
+
+            status(
+              "Eye tracking active. Look at the canvas without moving your mouse."
+            );
+
+            updateUI();
+          } else {
+            calibrate();
+          }
+        } else {
+          // Currently on eyes (or mid-calibration) -> back to mouse.
+          clearDots();
+          gazeBuffer.length = 0;
+          $("mouse").checked = true;
+
+          status(
+            "Mouse tracking active. Hover over the canvas, or click Switch to eye tracking to go back."
+          );
+
+          updateUI();
+        }
+      });
+
+      // Keep the buttons in sync if the checkbox is clicked directly.
+      $("mouse").addEventListener("change", updateUI);
+
+      // --------------------------------------------------
+      // 11. START WEBGAZER
+      // --------------------------------------------------
+
+      $("go").addEventListener("click", async () => {
+        if (webgazerStarted) {
+          if (running) {
+            stopTracking();
+          } else {
+            resumeTracking();
+          }
+
+          return;
+        }
+
+        $("go").disabled = true;
+
+        try {
+          status("Checking WebGazer...");
+
+          // The pinned script should have loaded before this code runs.
+          const gaze = window.webgazer;
+
+          if (!gaze) {
+            throw new Error(
+              "WebGazer did not load. Check your internet connection and the Network tab in Chrome DevTools."
+            );
+          }
+
+          if (
+            !navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia
+          ) {
+            throw new Error(
+              "Camera access is unavailable. Open this page using localhost or HTTPS in a supported browser."
+            );
+          }
+
+          status("Checking camera availability...");
+
+          const devices =
+            await navigator.mediaDevices.enumerateDevices();
+
+          if (
+            !devices.some(device => device.kind === "videoinput")
+          ) {
+            console.warn(
+              "No camera was listed before permission was granted. Trying WebGazer anyway."
+            );
+          }
+
+          // Set up WebGazer.
+          if (typeof gaze.setRegression === "function") {
+            gaze.setRegression("ridge");
+          }
+
+          if (typeof gaze.setGazeListener !== "function") {
+            throw new Error(
+              "The loaded WebGazer object does not contain setGazeListener. The library may not have loaded correctly."
+            );
+          }
+
+          gaze.setGazeListener(onGaze);
+
+          if (
+            typeof gaze.saveDataAcrossSessions === "function"
+          ) {
+            gaze.saveDataAcrossSessions(false);
+          }
+
+          // Let WebGazer size the preview itself so the green face-guide box
+          // is placed correctly inside it.
+          if (gaze.params) {
+            gaze.params.videoViewerWidth = PREVIEW_W;
+            gaze.params.videoViewerHeight = PREVIEW_H;
+          }
+
+          setPreviewVisible(true);
+
+          if (
+            typeof gaze.showPredictionPoints === "function"
+          ) {
+            gaze.showPredictionPoints(false);
+          }
+
+          status(
+            "Requesting camera access. Accept the browser permission prompt..."
+          );
+
+          if (typeof gaze.begin !== "function") {
+            throw new Error(
+              "WebGazer loaded, but its begin() function is missing."
+            );
+          }
+
+          await gaze.begin();
+
+          if (typeof gaze.applyKalmanFilter === "function") {
+            gaze.applyKalmanFilter(true);
+          }
+
+          webgazerStarted = true;
+
+          running = true;
+
+          status(
+            "Camera started. Begin calibration by clicking each red dot five times."
+          );
+
+          calibrate();
+
+        } catch (error) {
+          console.error(
+            "Eye-tracking initialization failed:",
+            error
+          );
+
+          const message =
+            error && error.message
+              ? error.message
+              : String(error);
+
+          status("Eye tracking failed: " + message);
+
+          $("mouse").checked = true;
+
+          alert(
+            "Eye tracking could not start.\n\n" +
+            message +
+            "\n\nOpen Chrome DevTools → Console for more details."
+          );
+
+        } finally {
+          $("go").disabled = false;
+          updateUI();
+        }
+      });
+
+      // --------------------------------------------------
+      // 12. RECALIBRATION
+      // --------------------------------------------------
+
+      $("recal").addEventListener("click", () => {
+        if (!webgazerStarted || !window.webgazer) {
+          status(
+            "Start eye tracking first. Mouse test mode is still available."
+          );
+          return;
+        }
+
+        try {
+          // If eye tracking was stopped, wake it up first.
+          if (!running) {
+            setPreviewVisible(true);
+
+            const result = window.webgazer.resume();
+
+            if (result && typeof result.catch === "function") {
+              result.catch(error => console.warn("Resume warning:", error));
+            }
+
+            running = true;
+          }
+
+          calibrated = false;
+
+          if (
+            typeof window.webgazer.clearData === "function"
+          ) {
+            window.webgazer.clearData();
+          }
+
+          calibrate();
+
+        } catch (error) {
+          console.error("Recalibration failed:", error);
+
+          status(
+            "Recalibration failed: " + error.message
+          );
+        }
+      });
+
+      // --------------------------------------------------
+      // 13. CLEAN UP WHEN THE PAGE CLOSES
+      // --------------------------------------------------
+
+      window.addEventListener("beforeunload", () => {
+        if (
+          webgazerStarted &&
+          window.webgazer &&
+          typeof window.webgazer.end === "function"
+        ) {
+          window.webgazer.end();
+        }
+      });
+
+    })();
+  </script>
+</body>
+</html>
