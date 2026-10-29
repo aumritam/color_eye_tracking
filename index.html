@@ -41,7 +41,7 @@
     }
 
     .sidebar {
-      flex: 0 0 270px;
+      flex: 0 0 300px;
       background: #f7f9fa;
       padding: 16px;
       border-radius: 8px;
@@ -184,6 +184,181 @@
       overflow: hidden !important;
     }
 
+    .sidebar summary {
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 6px;
+    }
+
+    button.musicon {
+      background: #fdeaf3;
+      color: #b4236b;
+      border-color: #b4236b;
+    }
+
+    .music {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    .music[hidden] {
+      display: none;
+    }
+
+    .chordname {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+
+    .chordnotes {
+      font-size: 13px;
+      color: #333;
+      margin: 2px 0 4px;
+    }
+
+    .chordgrid {
+      display: grid;
+      grid-template-columns: 30px repeat(12, 1fr);
+      gap: 2px;
+      margin: 10px 0 6px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .chordgrid .ch {
+      font-size: 8px;
+      text-align: center;
+      color: #555;
+    }
+
+    .chordgrid .rl {
+      font-size: 9px;
+      display: flex;
+      align-items: center;
+      color: #555;
+      font-weight: 650;
+    }
+
+    .chordgrid .cell {
+      height: 22px;
+      padding: 0;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+      font-size: 10px;
+      font-weight: 700;
+      color: #111;
+      line-height: 1;
+    }
+
+    .chordgrid .cell.on {
+      outline: 2px solid #111;
+      transform: scale(1.12);
+      position: relative;
+      z-index: 1;
+    }
+
+    .plate {
+      display: flex;
+      gap: 2px;
+      height: 46px;
+      margin: 8px 0;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .pkey {
+      flex: 1;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 3px;
+      border-radius: 4px;
+      border: 1px solid #aab;
+      background: #eef0ff;
+      color: #445;
+      font-size: 9px;
+      font-weight: 650;
+    }
+
+    .pkey.hit {
+      background: #7a5cff;
+      border-color: #5a3fe0;
+      color: #fff;
+    }
+
+    .musiccontrols {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .musiccontrols label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .musiccontrols select {
+      font-size: 13px;
+      padding: 4px;
+    }
+
+    .slider {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 220px;
+      flex: 1 1 220px;
+      max-width: 340px;
+    }
+
+    .slider input {
+      width: 100%;
+    }
+
+    .slabel {
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+      margin: 4px 0 0;
+    }
+
+    .pill[hidden] {
+      display: none;
+    }
+
+    .pill.ok {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    .pill.warn {
+      background: #fef7e0;
+      color: #a35200;
+    }
+
+    .pill.bad,
+    .pill.lost {
+      background: #fdecea;
+      color: #b3261e;
+    }
+
     .hint {
       color: #555;
       font-size: 12px;
@@ -223,14 +398,11 @@
 
           <button id="recal">Recalibrate</button>
 
+          <button id="music" type="button" aria-pressed="false">♪ Music mode: Off</button>
+
           <label>
             Image:
             <input type="file" id="up" accept="image/*">
-          </label>
-
-          <label>
-            Radius
-            <input type="range" id="rad" min="20" max="100" value="45">
           </label>
 
           <label>
@@ -243,6 +415,22 @@
             Gaze ring
           </label>
         </div>
+
+        <div class="bar">
+          <label class="slider">
+            <span class="slabel">Friction: <b id="fricv">50</b></span>
+            <input type="range" id="fric" min="0" max="100" value="50">
+            <span class="hint">Left = quick but shaky. Right = steady but slow.</span>
+          </label>
+
+          <label class="slider">
+            <span class="slabel">Radius: <b id="radv">45</b> px</span>
+            <input type="range" id="rad" min="20" max="100" value="45">
+            <span class="hint">How big an area is averaged for the color.</span>
+          </label>
+        </div>
+
+        <div id="head" class="pill" hidden></div>
 
         <div id="st" role="status" aria-live="polite">
           Mouse test mode is active. Hover over the canvas to test color naming.
@@ -257,13 +445,46 @@
 
         <p class="hint">
           To use eye tracking, click Start eye tracking, allow camera access,
-          and complete calibration. After calibration, look at the canvas
-          without moving your mouse.
+          and complete calibration. After calibration, just look at the
+          canvas.
         </p>
       </main>
 
       <aside class="sidebar">
-        <h3>Instructions</h3>
+        <section id="musicpanel" class="music" hidden>
+          <h3>♪ Music mode</h3>
+
+          <div id="chordname" class="chordname">Rest (silence)</div>
+          <div id="chordnotes" class="chordnotes">Look at a colorful part of the image.</div>
+          <div id="chordwhy" class="hint"></div>
+
+          <div id="chordgrid" class="chordgrid" aria-label="Chord buttons"></div>
+          <div id="plate" class="plate" aria-label="Strum plate" hidden style="display:none"></div>
+
+          <div class="musiccontrols">
+            <label>
+              Volume
+              <input type="range" id="vol" min="0" max="100" value="60">
+            </label>
+
+            <select id="strum" hidden style="display:none"><option value="off" selected>off</option></select>
+
+            <label>
+              Which hue plays which note
+              <select id="order">
+                <option value="hue" selected>Hue scanner: red = C, then C♯, D, D♯...</option>
+                <option value="fifths">Omnichord: circle of fifths (C, G, D, A...)</option>
+              </select>
+            </label>
+          </div>
+
+          <p class="hint">
+            Hold a chord button to play it yourself. Grey, white and black are rests.
+          </p>
+        </section>
+
+        <details id="instr" open>
+        <summary>Instructions</summary>
 
         <ol>
           <li>
@@ -284,8 +505,14 @@
 
           <li>
             <strong>Test your gaze:</strong>
-            Once calibration finishes, look around the canvas without
-            moving your mouse.
+            Once calibration finishes, look around the canvas.
+          </li>
+
+          <li>
+            <strong>Fix a wrong spot:</strong>
+            If the ring is off, look at a spot and click it. Every click
+            teaches the tracker. The Friction slider makes the ring
+            steadier (higher) or quicker (lower).
           </li>
 
           <li>
@@ -295,6 +522,13 @@
             <em>Stop eye tracking</em> to pause. Resuming keeps your
             calibration.
           </li>
+          <li>
+            <strong>Music mode:</strong>
+            Click <em>Music mode</em> to turn colors into chords. Where you
+            look (or hover with the mouse) decides the chord: hue picks the
+            note, saturation picks how many notes, and red / green / blue picks
+            major / minor / sus. It works with eye tracking or mouse mode.
+          </li>
         </ol>
 
         <p class="hint">
@@ -302,6 +536,10 @@
           Eye-tracking accuracy depends on lighting, camera position,
           and calibration.
         </p>
+
+        <p class="hint" id="version">
+          Version 2026-10-29d: music mode (chord pad only), friction slider, 120-click memory, head check</p>
+        </details>
       </aside>
 
     </div>
@@ -321,6 +559,826 @@
       const status = message => {
         $("st").textContent = message;
       };
+
+      // --------------------------------------------------
+      // 0b. MUSIC MODE: A COLOR BECOMES A CHORD (PLAYED LIKE AN OMNICHORD)
+      // --------------------------------------------------
+      // How a color becomes a chord (the hue scanner's rules):
+      //   hue          -> the root note (12 hues = 12 notes, red = C)
+      //   saturation   -> how many notes are in the chord (1 to 4)
+      //   strongest    -> the flavor of the chord: red = major, green = minor,
+      //   RGB channel     blue = sus, channels that are about equal = neutral
+      // Grey, white and black have no hue, so they are a rest (silence).
+      //
+      // How it sounds is borrowed from the Omnichord: a smooth, sustained
+      // chord "pad" underneath, plus harp-like plucks across the chord's
+      // notes (the Omnichord's strum plate).
+
+      const NOTE_NAMES = [
+        "C", "C♯", "D", "D♯", "E", "F",
+        "F♯", "G", "G♯", "A", "A♯", "B"
+      ];
+
+      const MUSIC = {
+        minSaturation: 0.12,          // less colorful than this = no hue = rest
+        minBrightness: 0.12,          // darker than this = black = rest
+        sizeSteps: [0.25, 0.5, 0.75], // saturation cut points for 2, 3, 4 notes
+        neutralMargin: 0.15,          // strongest channel must beat the next by this much
+        holdMs: 160,                  // a new chord must last this long before it plays
+        restHoldMs: 350,              // ...and silence must last this long
+        loopSeconds: 2.4              // time between strums in Loop mode
+      };
+
+      // Notes in each chord, by flavor and size (1 to 4 notes), in semitones
+      // above the root. Size 2 is always root + fifth; the flavor shows up
+      // from 3 notes. Neutral has no third at all (an open, empty sound).
+      const CHORD_SHAPES = {
+        major:   [[0], [0, 7], [0, 4, 7],  [0, 4, 7, 11]],
+        minor:   [[0], [0, 7], [0, 3, 7],  [0, 3, 7, 10]],
+        sus:     [[0], [0, 7], [0, 5, 7],  [0, 5, 7, 10]],
+        neutral: [[0], [0, 7], [0, 7, 12], [0, 7, 12, 19]]
+      };
+
+      const QUALITY_ROWS = ["major", "minor", "sus", "neutral"];
+
+      const QUALITY_LABELS = {
+        major: "Maj",
+        minor: "Min",
+        sus: "Sus",
+        neutral: "Open"
+      };
+
+      const mtof = midi => 440 * Math.pow(2, (midi - 69) / 12);
+
+      // Work out hue, saturation and flavor from an RGB color (0-255).
+      function analyzeColor(r, g, b) {
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const delta = max - min;
+
+        const value = max / 255;
+        const sat = max === 0 ? 0 : delta / max;
+
+        let hue = 0;
+
+        if (delta > 0) {
+          if (max === r) {
+            hue = ((g - b) / delta) % 6;
+          } else if (max === g) {
+            hue = (b - r) / delta + 2;
+          } else {
+            hue = (r - g) / delta + 4;
+          }
+
+          hue *= 60;
+
+          if (hue < 0) hue += 360;
+        }
+
+        // Is one channel clearly the strongest?
+        const sorted = [r, g, b].sort((a, c) => c - a);
+        const margin = max === 0 ? 0 : (sorted[0] - sorted[1]) / max;
+
+        let quality = "neutral";
+
+        if (margin >= MUSIC.neutralMargin) {
+          quality = max === r ? "major" : max === g ? "minor" : "sus";
+        }
+
+        let size = 1;
+
+        for (const cut of MUSIC.sizeSteps) {
+          if (sat >= cut) size++;
+        }
+
+        return {
+          r, g, b,
+          hue, sat, value,
+          sector: Math.round(hue / 30) % 12,   // 0-11, each hue sector is 30 degrees
+          quality,
+          size,
+          rest: sat < MUSIC.minSaturation || value < MUSIC.minBrightness
+        };
+      }
+
+      // Which note a hue sector plays. "hue" order is chromatic (red = C,
+      // next hue = C#, ...). "fifths" is the Omnichord's order (C, G, D, ...),
+      // where neighboring colors make chords that sound good together.
+      const rootOf = (sector, order) =>
+        order === "fifths" ? (sector * 7) % 12 : sector;
+
+      function chordName(root, quality, size) {
+        const note = NOTE_NAMES[root];
+
+        if (size === 1) return note + " (single note)";
+        if (size === 2) return note + "5";
+
+        const suffix = {
+          major: ["", "maj7"],
+          minor: ["m", "m7"],
+          sus: ["sus4", "7sus4"],
+          neutral: ["5 (open)", "5 (open, wide)"]
+        }[quality][size - 3];
+
+        return note + suffix;
+      }
+
+      function buildChord(sector, quality, size, order) {
+        const root = rootOf(sector, order);
+        const intervals = CHORD_SHAPES[quality][size - 1];
+
+        // The pad sits around the middle of the keyboard (C3 and up).
+        const padRoot = 48 + root - (root >= 6 ? 12 : 0);
+        const padMidi = intervals.map(interval => padRoot + interval);
+
+        // The strum plate repeats the chord's notes over two higher octaves.
+        const plate = new Set();
+
+        for (let octave = 1; octave <= 2; octave++) {
+          for (const interval of intervals) {
+            plate.add(padRoot + 12 * octave + interval);
+          }
+        }
+
+        plate.add(padRoot + 36);
+
+        return {
+          key: `${sector}-${quality}-${size}-${order}`,
+          sector,
+          root,
+          quality,
+          size,
+          intervals,
+          padMidi,
+          plateMidi: [...plate].sort((a, c) => a - c),
+          name: chordName(root, quality, size),
+          noteNames: [...new Set(padMidi.map(m => NOTE_NAMES[m % 12]))]
+        };
+      }
+
+      // Color in, chord out (chord is null for a rest).
+      function chordForColor(r, g, b, order) {
+        const analysis = analyzeColor(r, g, b);
+
+        return {
+          analysis,
+          chord: analysis.rest
+            ? null
+            : buildChord(analysis.sector, analysis.quality, analysis.size, order)
+        };
+      }
+
+      // --------------------------------------------------
+      // 0c. THE SOUND: A SMALL OMNICHORD-LIKE SYNTH (WEB AUDIO)
+      // --------------------------------------------------
+
+      const PAD_LEVEL = 0.075;   // loudness of each pad note
+
+      class OmniSynth {
+        constructor(ctx) {
+          this.ctx = ctx;
+          this.voices = new Map();   // pad notes that are sounding: midi -> voice
+
+          // Everything plays into "input", then goes through a gentle tone
+          // filter, a chorus (slow wobble) and a reverb.
+          this.input = ctx.createGain();
+
+          this.tone = ctx.createBiquadFilter();
+          this.tone.type = "lowpass";
+          this.tone.frequency.value = 3600;
+          this.tone.Q.value = 0.5;
+
+          const chorusDelay = ctx.createDelay(0.05);
+          chorusDelay.delayTime.value = 0.022;
+
+          const wobble = ctx.createOscillator();
+          wobble.frequency.value = 0.4;
+
+          const wobbleDepth = ctx.createGain();
+          wobbleDepth.gain.value = 0.006;
+
+          wobble.connect(wobbleDepth);
+          wobbleDepth.connect(chorusDelay.delayTime);
+          wobble.start();
+
+          const chorusWet = ctx.createGain();
+          chorusWet.gain.value = 0.6;
+
+          const mix = ctx.createGain();
+
+          this.input.connect(this.tone);
+          this.tone.connect(mix);
+          this.tone.connect(chorusDelay);
+          chorusDelay.connect(chorusWet);
+          chorusWet.connect(mix);
+
+          const reverb = ctx.createConvolver();
+          reverb.buffer = OmniSynth.makeRoom(ctx, 2.4);
+
+          const reverbWet = ctx.createGain();
+          reverbWet.gain.value = 0.3;
+
+          // A compressor keeps loud moments from distorting.
+          const compressor = ctx.createDynamicsCompressor();
+          compressor.threshold.value = -14;
+          compressor.knee.value = 24;
+          compressor.ratio.value = 4;
+          compressor.attack.value = 0.01;
+          compressor.release.value = 0.25;
+
+          this.master = ctx.createGain();
+          this.master.gain.value = 0.3;
+
+          mix.connect(reverb);
+          reverb.connect(reverbWet);
+          reverbWet.connect(compressor);
+          mix.connect(compressor);
+          compressor.connect(this.master);
+          this.master.connect(ctx.destination);
+        }
+
+        // A made-up room: noise that fades away.
+        static makeRoom(ctx, seconds) {
+          const length = Math.floor(ctx.sampleRate * seconds);
+          const room = ctx.createBuffer(2, length, ctx.sampleRate);
+
+          for (let channel = 0; channel < 2; channel++) {
+            const data = room.getChannelData(channel);
+
+            for (let i = 0; i < length; i++) {
+              data[i] =
+                (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.6);
+            }
+          }
+
+          return room;
+        }
+
+        // volume is 0-100
+        setVolume(volume) {
+          this.master.gain.setTargetAtTime(
+            Math.pow(volume / 100, 2) * 0.9,
+            this.ctx.currentTime,
+            0.03
+          );
+        }
+
+        // Make the pad play exactly these notes (null = silence). Notes that
+        // two chords share keep playing, so chord changes sound smooth.
+        setChord(notes) {
+          const now = this.ctx.currentTime;
+          const wanted = new Set(notes || []);
+
+          for (const [midi, voice] of this.voices) {
+            if (!wanted.has(midi)) {
+              this.release(voice, now);
+              this.voices.delete(midi);
+            }
+          }
+
+          for (const midi of wanted) {
+            if (!this.voices.has(midi)) {
+              this.voices.set(midi, this.startVoice(midi, now));
+            }
+          }
+        }
+
+        // One pad note: two slightly detuned saw waves (the chorus-y
+        // organ sound) plus a soft note an octave down for body.
+        startVoice(midi, now) {
+          const ctx = this.ctx;
+          const freq = mtof(midi);
+
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.setTargetAtTime(PAD_LEVEL, now, 0.08);
+
+          const filter = ctx.createBiquadFilter();
+          filter.type = "lowpass";
+          filter.frequency.value = Math.min(freq * 7, 4200);
+          filter.Q.value = 0.4;
+
+          filter.connect(gain);
+          gain.connect(this.input);
+
+          const oscillators = [];
+
+          for (const cents of [-7, 7]) {
+            const saw = ctx.createOscillator();
+            saw.type = "sawtooth";
+            saw.frequency.value = freq;
+            saw.detune.value = cents;
+            saw.connect(filter);
+            saw.start(now);
+            oscillators.push(saw);
+          }
+
+          const sub = ctx.createOscillator();
+          const subGain = ctx.createGain();
+          sub.type = "sine";
+          sub.frequency.value = freq / 2;
+          subGain.gain.value = 0.7;
+          sub.connect(subGain);
+          subGain.connect(filter);
+          sub.start(now);
+          oscillators.push(sub);
+
+          return { gain, filter, oscillators };
+        }
+
+        release(voice, now) {
+          voice.gain.gain.setTargetAtTime(0, now, 0.14);
+
+          for (const oscillator of voice.oscillators) {
+            oscillator.stop(now + 1.4);
+          }
+
+          voice.oscillators[0].onended = () => {
+            voice.gain.disconnect();
+            voice.filter.disconnect();
+          };
+        }
+
+        // One harp-like pluck: a bright triangle wave with a bit of the
+        // octave and twelfth above it, dying away quickly.
+        pluck(midi, when, velocity = 0.3) {
+          const ctx = this.ctx;
+          const freq = mtof(midi);
+
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.0001, when);
+          gain.gain.exponentialRampToValueAtTime(velocity, when + 0.006);
+          gain.gain.exponentialRampToValueAtTime(0.0001, when + 1.5);
+          gain.connect(this.input);
+
+          const parts = [
+            ["triangle", 1, 1],
+            ["sine", 2, 0.35],
+            ["sine", 3, 0.12]
+          ];
+
+          for (const [type, multiple, level] of parts) {
+            const oscillator = ctx.createOscillator();
+            const partGain = ctx.createGain();
+
+            oscillator.type = type;
+            oscillator.frequency.value = freq * multiple;
+            partGain.gain.value = level;
+
+            oscillator.connect(partGain);
+            partGain.connect(gain);
+
+            oscillator.start(when);
+            oscillator.stop(when + 1.6);
+          }
+        }
+
+        // Pluck a list of notes one after another, like a finger swept across
+        // the Omnichord's strum plate. Returns the notes in the order played.
+        strum(notes, { down = false, spacing = 0.055, when = this.ctx.currentTime } = {}) {
+          const ordered = [...notes].sort((a, b) => a - b);
+
+          if (down) ordered.reverse();
+
+          ordered.forEach((midi, index) => {
+            this.pluck(midi, when + index * spacing, 0.3);
+          });
+
+          return ordered;
+        }
+      }
+
+      // --------------------------------------------------
+      // 0d. MUSIC MODE CONTROLLER: BUTTON, PANEL, STRUMMING
+      // --------------------------------------------------
+
+      const music = (() => {
+        let on = false;
+        let ctx = null;
+        let synth = null;
+
+        let order = "hue";        // "hue" or "fifths"
+        let strumMode = "off";   // "loop", "change" or "off"
+
+        let current = null;       // the chord that is sounding (null = silence)
+        let currentKey = "rest";
+
+        let pendingKey = null;    // a new chord waiting to prove it is stable
+        let pendingChord = null;
+        let pendingSince = 0;
+
+        let held = null;          // chord button being held with mouse/finger
+        let lastColor = null;     // the most recent color we were told about
+        let lastStrum = 0;
+        let strumDown = false;
+        let lastWhy = "";
+
+        let plateKeys = [];       // the keys drawn on the strum plate
+
+        const button = $("music");
+        const panel = $("musicpanel");
+
+        // ---------- drawing the panel ----------
+
+        function renderGrid() {
+          const grid = $("chordgrid");
+          grid.innerHTML = "";
+
+          grid.appendChild(document.createElement("span"));
+
+          for (let sector = 0; sector < 12; sector++) {
+            const label = document.createElement("span");
+            label.className = "ch";
+            label.textContent = NOTE_NAMES[rootOf(sector, order)];
+            grid.appendChild(label);
+          }
+
+          for (const quality of QUALITY_ROWS) {
+            const rowLabel = document.createElement("span");
+            rowLabel.className = "rl";
+            rowLabel.textContent = QUALITY_LABELS[quality];
+            grid.appendChild(rowLabel);
+
+            for (let sector = 0; sector < 12; sector++) {
+              const cell = document.createElement("button");
+              cell.type = "button";
+              cell.className = "cell";
+              cell.dataset.sector = sector;
+              cell.dataset.quality = quality;
+              cell.style.background = `hsl(${sector * 30}, 70%, 74%)`;
+              cell.setAttribute(
+                "aria-label",
+                NOTE_NAMES[rootOf(sector, order)] + " " + quality
+              );
+              grid.appendChild(cell);
+            }
+          }
+
+          highlight(current);
+        }
+
+        function highlight(chord) {
+          document.querySelectorAll("#chordgrid .cell").forEach(cell => {
+            const active =
+              chord &&
+              Number(cell.dataset.sector) === chord.sector &&
+              cell.dataset.quality === chord.quality;
+
+            cell.classList.toggle("on", Boolean(active));
+            cell.textContent = active ? String(chord.size) : "";
+          });
+        }
+
+        function renderPlate(chord) {
+          const plate = $("plate");
+          plate.innerHTML = "";
+          plateKeys = [];
+
+          for (const midi of chord.plateMidi) {
+            const key = document.createElement("div");
+            key.className = "pkey";
+            key.dataset.midi = midi;
+            key.textContent = NOTE_NAMES[midi % 12];
+            plate.appendChild(key);
+            plateKeys.push(key);
+          }
+        }
+
+        function renderChord(chord) {
+          $("chordname").textContent = chord ? chord.name : "Rest (silence)";
+
+          $("chordnotes").textContent = chord
+            ? `${chord.size} note${chord.size > 1 ? "s" : ""}: ${chord.noteNames.join(" – ")}`
+            : "Look at a colorful part of the image.";
+
+          highlight(chord);
+
+          if (chord) renderPlate(chord);
+        }
+
+        function renderWhy(analysis) {
+          let text = "";
+
+          if (analysis && analysis.rest) {
+            text = "No real color here (grey, white or black), so it is a rest.";
+          } else if (analysis) {
+            const strongest = analysis.quality === "neutral"
+              ? "channels about equal, so neutral"
+              : { major: "red", minor: "green", sus: "blue" }[analysis.quality] +
+                " is strongest, so " + analysis.quality;
+
+            text =
+              `Hue ${Math.round(analysis.hue)}° · saturation ` +
+              `${Math.round(analysis.sat * 100)}% · rgb(${analysis.r}, ` +
+              `${analysis.g}, ${analysis.b}) · ${strongest}`;
+          }
+
+          if (text !== lastWhy) {
+            lastWhy = text;
+            $("chordwhy").textContent = text;
+          }
+        }
+
+        // Light up plate keys in the order they are plucked.
+        function flash(notes, spacing) {
+          notes.forEach((midi, index) => {
+            setTimeout(() => {
+              const key = plateKeys.find(k => Number(k.dataset.midi) === midi);
+
+              if (!key) return;
+
+              key.classList.add("hit");
+              setTimeout(() => key.classList.remove("hit"), 180);
+            }, index * spacing * 1000);
+          });
+        }
+
+        // ---------- playing ----------
+
+        function strum(down) {
+          if (!on || !synth || !current) return;
+
+          const spacing = 0.055;
+
+          const notes = synth.strum(current.plateMidi, {
+            down,
+            spacing,
+            when: ctx.currentTime + 0.02
+          });
+
+          lastStrum = performance.now();
+          flash(notes, spacing);
+        }
+
+        // Switch to a new chord (null = silence).
+        function commit(chord) {
+          current = chord;
+          currentKey = chord ? chord.key : "rest";
+
+          synth.setChord(chord ? chord.padMidi : null);
+          renderChord(chord);
+
+          strumDown = false;
+
+          if (chord && strumMode !== "off") strum(false);
+        }
+
+        // Called every time the app measures a color (or null when you are
+        // not looking at the image). A new chord has to stay for a moment
+        // before it plays, so a shaky gaze does not make the music flutter.
+        function feed(color) {
+          if (!on) return;
+
+          lastColor = color;
+
+          if (held) return;
+
+          let result = null;
+
+          if (color && !document.querySelector(".dot")) {
+            result = chordForColor(color.r, color.g, color.b, order);
+          }
+
+          const chord = result ? result.chord : null;
+
+          renderWhy(result ? result.analysis : null);
+
+          const key = chord ? chord.key : "rest";
+
+          if (key === currentKey) {
+            pendingKey = null;
+            return;
+          }
+
+          const now = performance.now();
+
+          if (pendingKey !== key) {
+            pendingKey = key;
+            pendingChord = chord;
+            pendingSince = now;
+            return;
+          }
+
+          const wait = chord ? MUSIC.holdMs : MUSIC.restHoldMs;
+
+          if (now - pendingSince >= wait) {
+            pendingKey = null;
+            commit(pendingChord);
+          }
+        }
+
+        // ---------- playing by hand (chord buttons and strum plate) ----------
+
+        function pressChord(sector, quality) {
+          if (!on) return;
+
+          held = buildChord(sector, quality, 3, order);
+          pendingKey = null;
+          commit(held);
+        }
+
+        function releaseChord() {
+          if (!held) return;
+
+          held = null;
+          commit(null);
+        }
+
+        function pluckMidi(midi) {
+          if (!on || !synth) return;
+
+          synth.pluck(midi, ctx.currentTime + 0.01, 0.3);
+
+          const key = plateKeys.find(k => Number(k.dataset.midi) === midi);
+
+          if (key) {
+            key.classList.add("hit");
+            setTimeout(() => key.classList.remove("hit"), 180);
+          }
+        }
+
+        // ---------- turning it on and off ----------
+
+        function enable() {
+          if (!ctx) {
+            const AudioContextClass =
+              window.AudioContext || window.webkitAudioContext;
+
+            if (!AudioContextClass) {
+              status("This browser can't play web audio, so Music mode is unavailable.");
+              return false;
+            }
+
+            ctx = new AudioContextClass();
+            synth = new OmniSynth(ctx);
+            synth.setVolume(Number($("vol").value));
+          }
+
+          ctx.resume();
+
+          on = true;
+          panel.hidden = false;
+          $("instr").open = false;
+
+          button.textContent = "♪ Music mode: On";
+          button.classList.add("musicon");
+          button.setAttribute("aria-pressed", "true");
+
+          renderGrid();
+          renderPlate(buildChord(0, "major", 3, order));
+          renderChord(null);
+
+          return true;
+        }
+
+        function disable() {
+          on = false;
+          held = null;
+          lastColor = null;
+          pendingKey = null;
+          current = null;
+          currentKey = "rest";
+
+          if (synth) synth.setChord(null);
+
+          // Let the last notes fade out, then pause the audio engine.
+          setTimeout(() => {
+            if (!on && ctx) ctx.suspend();
+          }, 900);
+
+          panel.hidden = true;
+          button.textContent = "♪ Music mode: Off";
+          button.classList.remove("musicon");
+          button.setAttribute("aria-pressed", "false");
+        }
+
+        function toggle() {
+          if (on) {
+            disable();
+          } else {
+            enable();
+          }
+        }
+
+        // ---------- wiring ----------
+
+        button.addEventListener("click", toggle);
+
+        $("vol").addEventListener("input", () => {
+          if (synth) synth.setVolume(Number($("vol").value));
+        });
+
+        $("strum").addEventListener("change", () => {
+          strumMode = $("strum").value;
+        });
+
+        $("order").addEventListener("change", () => {
+          order = $("order").value;
+          renderGrid();
+          pendingKey = null;
+        });
+
+        // Chord buttons: hold one down to play it.
+        const grid = $("chordgrid");
+
+        grid.addEventListener("pointerdown", event => {
+          const cell = event.target.closest(".cell");
+
+          if (!cell) return;
+
+          event.preventDefault();
+          pressChord(Number(cell.dataset.sector), cell.dataset.quality);
+        });
+
+        for (const name of ["pointerup", "pointerleave", "pointercancel"]) {
+          grid.addEventListener(name, releaseChord);
+        }
+
+        // Strum plate: press a key to pluck it, or drag across to strum.
+        const plate = $("plate");
+        let plateDown = false;
+        let lastKey = null;
+
+        function pluckUnder(event) {
+          const element = document.elementFromPoint(event.clientX, event.clientY);
+
+          if (!element || !element.classList.contains("pkey")) {
+            lastKey = null;
+            return;
+          }
+
+          if (element === lastKey) return;
+
+          lastKey = element;
+          pluckMidi(Number(element.dataset.midi));
+        }
+
+        plate.addEventListener("pointerdown", event => {
+          plateDown = true;
+          event.preventDefault();
+          pluckUnder(event);
+        });
+
+        plate.addEventListener("pointermove", event => {
+          if (plateDown) pluckUnder(event);
+        });
+
+        for (const name of ["pointerup", "pointerleave", "pointercancel"]) {
+          plate.addEventListener(name, () => {
+            plateDown = false;
+            lastKey = null;
+          });
+        }
+
+        // The mouse only reports when it moves, so if you rest it on a color
+        // nothing would tell us to start the chord. Checking the last color
+        // a few times a second fixes that (your eyes keep reporting anyway).
+        setInterval(() => {
+          if (on && !held) feed(lastColor);
+        }, 60);
+
+        // In Loop mode, strum again every few seconds while a chord is held
+        // (alternating up and down, like a gentle harp).
+        setInterval(() => {
+          if (
+            on &&
+            current &&
+            strumMode === "loop" &&
+            performance.now() - lastStrum >= MUSIC.loopSeconds * 1000
+          ) {
+            strumDown = !strumDown;
+            strum(strumDown);
+          }
+        }, 100);
+
+        // Go quiet when you switch to another tab.
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden && on && synth) {
+            held = null;
+            lastColor = null;
+            commit(null);
+          }
+        });
+
+        return {
+          feed,
+          toggle,
+          isOn: () => on,
+          state: () => ({ on, chord: current, held }),
+          context: () => ctx
+        };
+      })();
+
+      // A small handle so the music rules and synth can be tested.
+      window.eyeColorMusic = {
+        analyzeColor,
+        chordForColor,
+        buildChord,
+        OmniSynth,
+        MUSIC,
+        music
+      };
+
 
       // --------------------------------------------------
       // 1. DRAW THE INITIAL COLOR PALETTE
@@ -551,6 +1609,9 @@
 
         $("hx").textContent =
           `${hex}   rgb(${red}, ${green}, ${blue})`;
+
+        // Music mode (does nothing unless it is switched on).
+        music.feed({ r: red, g: green, b: blue });
       }
 
       // --------------------------------------------------
@@ -581,6 +1642,7 @@
         ) {
           $("nm").textContent = "(look at the canvas)";
           $("hx").textContent = "";
+          music.feed(null);
           return;
         }
 
@@ -683,14 +1745,253 @@
       let webgazerStarted = false;
       let calibrated = false;
 
+      // Recent raw gaze guesses (the smoothing below works from these).
       const gazeBuffer = [];
-      const BUFFER_SIZE = 5;
+
+      // --------------------------------------------------
+      // 8b. MAKE WEBGAZER REMEMBER MORE CALIBRATION CLICKS
+      // --------------------------------------------------
+      // WebGazer only remembers its last 50 calibration clicks and forgets
+      // the older ones. Our calibration is 12 dots x 5 clicks = 60 clicks, so
+      // the first dots were being thrown away. This gives it room for 120
+      // (a bit more than the 60 calibration clicks, so a few "click to
+      // correct" clicks also fit). More memory = a bit more work per frame.
+      const MEMORY = 120;
+
+      function tuneWebGazer() {
+        const gaze = window.webgazer;
+
+        if (!gaze) return;
+
+        // Learn from clicks only. By default WebGazer also learns from where
+        // your mouse is moving, which is wrong whenever your eyes and your
+        // cursor are in different places. A huge tick size turns that off.
+        if (gaze.params) {
+          gaze.params.moveTickSize = 1e9;
+        }
+
+        if (
+          typeof gaze.getRegression !== "function" ||
+          !gaze.util ||
+          !gaze.util.DataWindow
+        ) {
+          console.warn("Could not enlarge WebGazer's click memory.");
+          return;
+        }
+
+        const keys = [
+          "screenXClicksArray",
+          "screenYClicksArray",
+          "eyeFeaturesClicks",
+          "dataClicks"
+        ];
+
+        for (const reg of gaze.getRegression()) {
+          for (const key of keys) {
+            if (reg[key] && reg[key].windowSize < MEMORY) {
+              reg[key] = new gaze.util.DataWindow(MEMORY, reg[key].data);
+            }
+          }
+        }
+      }
+
+      // --------------------------------------------------
+      // 8c. FRICTION: MAKE THE RING STEADIER
+      // --------------------------------------------------
+      // The raw guess from a webcam jumps around by tens of pixels every
+      // frame. The Friction slider (0-100) controls three things:
+      //   win  - how many recent guesses we take the middle value of. This
+      //          throws away sudden one-frame jumps.
+      //   tau  - how long (in seconds) the ring takes to catch up. Bigger
+      //          = the ring feels like it is dragging through honey.
+      //   dead - a "dead zone" in pixels. Inside it the ring only creeps, so
+      //          small wobbles are mostly ignored and the ring sits still
+      //          while you stare at a spot.
+      // Real, bigger eye movements still get through (the ring speeds up
+      // when it is far from where you are looking).
+      function frictionSettings() {
+        const f = Number($("fric").value) / 100;
+
+        return {
+          win: 3 + 2 * Math.round(f * 6),   // 3, 5, 7 ... 15
+          tau: 0.05 * Math.pow(24, f),      // 0.05 s ... 1.2 s
+          dead: 80 * f                      // 0 ... 80 px
+        };
+      }
+
+      // Show the numbers next to the sliders.
+      $("fric").addEventListener("input", () => {
+        $("fricv").textContent = $("fric").value;
+      });
+
+      $("rad").addEventListener("input", () => {
+        $("radv").textContent = $("rad").value;
+      });
+
+      const medianOf = values => {
+        const sorted = [...values].sort((a, b) => a - b);
+        return sorted[Math.floor(sorted.length / 2)];
+      };
+
+      let smooth = null;      // where the ring is right now
+      let lastGazeTime = 0;
+
+      function smoothGaze(rawX, rawY, now) {
+        const { win, tau, dead } = frictionSettings();
+
+        gazeBuffer.push({ x: rawX, y: rawY });
+
+        while (gazeBuffer.length > win) {
+          gazeBuffer.shift();
+        }
+
+        const targetX = medianOf(gazeBuffer.map(p => p.x));
+        const targetY = medianOf(gazeBuffer.map(p => p.y));
+
+        // First point after a reset: start right there.
+        if (!smooth || gazeBuffer.length === 1) {
+          smooth = { x: targetX, y: targetY };
+          lastGazeTime = now;
+          return smooth;
+        }
+
+        const dt = Math.min(Math.max((now - lastGazeTime) / 1000, 0), 0.25);
+        lastGazeTime = now;
+
+        let dx = targetX - smooth.x;
+        let dy = targetY - smooth.y;
+        const dist = Math.hypot(dx, dy);
+
+        // The farther away the target, the faster the ring catches up.
+        // Inside the dead zone the ring only creeps (6x slower), so small
+        // wobble is ignored but the ring never gets stuck a little off.
+        const tauNow = dist <= dead
+          ? tau * 6
+          : tau / (1 + (dist - dead) / 150);
+
+        const alpha = 1 - Math.exp(-dt / tauNow);
+
+        smooth.x += dx * alpha;
+        smooth.y += dy * alpha;
+
+        return smooth;
+      }
+
+      // --------------------------------------------------
+      // 8d. HEAD-MOVEMENT WATCHER
+      // --------------------------------------------------
+      // WebGazer only looks at small pictures of your eyes. It has no idea
+      // where your head is. If you lean or shift after calibrating, the eye
+      // pictures change and the ring drifts even though you are looking at
+      // the same spot. So we remember where your eyes were during
+      // calibration and warn you when you have moved away from that.
+      //
+      // Distances are measured in "eye gaps" (the distance between your two
+      // eyes in the camera image), so it works at any distance from the
+      // camera. These thresholds are starting guesses: raise them if the
+      // warning is too fussy, lower them if the ring drifts without warning.
+      const HEAD_OK = 0.15;     // sideways/up/down shift (fraction of eye gap)
+      const HEAD_BAD = 0.30;
+      const ZOOM_OK = 0.07;     // closer/farther (fraction change in eye gap)
+      const ZOOM_BAD = 0.15;
+
+      let calSum = { x: 0, y: 0, gap: 0, n: 0 };
+      let headRef = null;       // average eye position during calibration
+      const headLog = [];
+      let headState = "";
+
+      function eyeMetrics(features) {
+        if (!features || !features.left || !features.right) return null;
+
+        const lx = features.left.imagex + features.left.width / 2;
+        const ly = features.left.imagey + features.left.height / 2;
+        const rx = features.right.imagex + features.right.width / 2;
+        const ry = features.right.imagey + features.right.height / 2;
+
+        const metrics = {
+          x: (lx + rx) / 2,
+          y: (ly + ry) / 2,
+          gap: Math.hypot(lx - rx, ly - ry)
+        };
+
+        return Object.values(metrics).every(Number.isFinite) && metrics.gap > 0
+          ? metrics
+          : null;
+      }
+
+      function setHead(state) {
+        if (state === headState) return;
+
+        headState = state;
+
+        const el = $("head");
+        const messages = {
+          ok: "Head position: good",
+          warn: "Head drifting. Move back to where you were when you calibrated.",
+          bad: "Head moved a lot. Move back, or press Recalibrate.",
+          lost: "Face not found. Look at the camera."
+        };
+
+        el.hidden = state === "";
+        el.className = "pill " + state;
+        el.textContent = messages[state] || "";
+      }
+
+      function trackHead(data) {
+        const m = data ? eyeMetrics(data.eyeFeatures) : null;
+
+        // While calibrating: average where your eyes are.
+        if (!calibrated) {
+          if (m && document.querySelector(".dot")) {
+            calSum.x += m.x;
+            calSum.y += m.y;
+            calSum.gap += m.gap;
+            calSum.n++;
+          }
+
+          return;
+        }
+
+        // Only show the message while eye tracking is actually in use.
+        if (!headRef || !running || $("mouse").checked) {
+          setHead("");
+          return;
+        }
+
+        if (!m) {
+          setHead("lost");
+          return;
+        }
+
+        headLog.push(m);
+
+        if (headLog.length > 8) {
+          headLog.shift();
+        }
+
+        const x = medianOf(headLog.map(p => p.x));
+        const y = medianOf(headLog.map(p => p.y));
+        const gap = medianOf(headLog.map(p => p.gap));
+
+        const shift = Math.hypot(x - headRef.x, y - headRef.y) / headRef.gap;
+        const zoom = Math.abs(gap / headRef.gap - 1);
+
+        if (shift > HEAD_BAD || zoom > ZOOM_BAD) {
+          setHead("bad");
+        } else if (shift > HEAD_OK || zoom > ZOOM_OK) {
+          setHead("warn");
+        } else {
+          setHead("ok");
+        }
+      }
 
       // --------------------------------------------------
       // 9. RECEIVE GAZE PREDICTIONS FROM WEBGAZER
       // --------------------------------------------------
 
       function onGaze(data) {
+        trackHead(data);
+
         if (
           !data ||
           !Number.isFinite(data.x) ||
@@ -704,27 +2005,9 @@
           return;
         }
 
-        gazeBuffer.push({
-          x: data.x,
-          y: data.y
-        });
+        const point = smoothGaze(data.x, data.y, performance.now());
 
-        if (gazeBuffer.length > BUFFER_SIZE) {
-          gazeBuffer.shift();
-        }
-
-        // Average recent predictions to reduce jitter.
-        const x = gazeBuffer.reduce(
-          (sum, point) => sum + point.x,
-          0
-        ) / gazeBuffer.length;
-
-        const y = gazeBuffer.reduce(
-          (sum, point) => sum + point.y,
-          0
-        ) / gazeBuffer.length;
-
-        sampleAtClientPosition(x, y);
+        sampleAtClientPosition(point.x, point.y);
       }
 
       // --------------------------------------------------
@@ -758,6 +2041,11 @@
         $("mouse").checked = true;
 
         gazeBuffer.length = 0;
+
+        // Start collecting a fresh "where my head was" reference.
+        calSum = { x: 0, y: 0, gap: 0, n: 0 };
+        headRef = null;
+        headLog.length = 0;
 
         document.querySelectorAll(".dot").forEach(dot => {
           dot.remove();
@@ -824,8 +2112,32 @@
 
                 gazeBuffer.length = 0;
 
+                // Remember where your head was while you calibrated.
+                headRef = calSum.n >= 20
+                  ? {
+                      x: calSum.x / calSum.n,
+                      y: calSum.y / calSum.n,
+                      gap: calSum.gap / calSum.n
+                    }
+                  : null;
+
+                headLog.length = 0;
+
+                // How many calibration samples WebGazer is holding on to.
+                let learned = null;
+
+                try {
+                  learned = window.webgazer
+                    .getRegression()[0]
+                    .screenXClicksArray.data.length;
+                } catch (error) {
+                  learned = null;
+                }
+
                 status(
-                  "Calibration finished. Look at the canvas without moving your mouse, and keep the canvas where it was during calibration."
+                  "Calibration finished" +
+                  (learned ? " (" + learned + " samples learned)" : "") +
+                  ". Look around the canvas. If the ring is off, look at a spot and click it to correct it. Keep your head where it was during calibration."
                 );
 
                 updateUI();
@@ -912,6 +2224,11 @@
 
         const calibrating = document.querySelector(".dot") !== null;
         const mouseOn = $("mouse").checked;
+
+        // The head-position message only makes sense while eye tracking.
+        if (!running || mouseOn || calibrating) {
+          setHead("");
+        }
 
         // Main button: Start -> Stop -> Resume
         if (!webgazerStarted) {
@@ -1096,6 +2413,8 @@
             gaze.setRegression("ridge");
           }
 
+          tuneWebGazer();
+
           if (typeof gaze.setGazeListener !== "function") {
             throw new Error(
               "The loaded WebGazer object does not contain setGazeListener. The library may not have loaded correctly."
@@ -1136,6 +2455,9 @@
           }
 
           await gaze.begin();
+
+          // begin() can set things up again, so apply the tuning once more.
+          tuneWebGazer();
 
           if (typeof gaze.applyKalmanFilter === "function") {
             gaze.applyKalmanFilter(true);
@@ -1210,6 +2532,9 @@
             typeof window.webgazer.clearData === "function"
           ) {
             window.webgazer.clearData();
+
+            // clearData() also resets the memory size, so enlarge it again.
+            tuneWebGazer();
           }
 
           calibrate();
