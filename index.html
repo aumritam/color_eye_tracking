@@ -142,6 +142,40 @@
       touch-action: manipulation;
     }
 
+
+    .scanline {
+      position: fixed;
+      width: 2px;
+      margin-left: -1px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+      pointer-events: none;
+      z-index: 5;
+      display: none;
+    }
+    .scanline .sd {
+      position: absolute;
+      left: 50%;
+      width: 12px;
+      height: 12px;
+      margin: -6px 0 0 -6px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+      transition: transform 0.15s;
+    }
+    .scanline .sd.hit { transform: scale(1.8); }
+    .xylo { display: flex; gap: 3px; margin: 8px 0; height: 54px; }
+    .xylo .xk {
+      flex: 1; border-radius: 4px; background: #eef; border: 1px solid #99c;
+      font-size: 10px; text-align: center; padding-top: 34px; color: #446;
+      transition: background 0.3s;
+    }
+    .xylo .xk.hit { background: #7c5cff; color: #fff; }
+    .scanrow { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .scanrow button { padding: 6px 12px; white-space: nowrap; }
+    .scanrow button.on { background: #7c5cff; color: #fff; border-color: #7c5cff; }
+
     .dot {
       position: fixed;
       padding: 0;
@@ -436,6 +470,7 @@
           Mouse test mode is active. Hover over the canvas to test color naming.
         </div>
 
+        <div id="scanline" class="scanline"></div>
         <canvas
           id="cv"
           width="910"
@@ -460,6 +495,7 @@
 
           <div id="chordgrid" class="chordgrid" aria-label="Chord buttons"></div>
           <div id="plate" class="plate" aria-label="Strum plate" hidden style="display:none"></div>
+          <div id="xylo" class="xylo" aria-label="Scanner notes" hidden></div>
 
           <div class="musiccontrols">
             <label>
@@ -468,6 +504,11 @@
             </label>
 
             <select id="strum" hidden style="display:none"><option value="off" selected>off</option></select>
+
+            <div class="scanrow">
+              <button id="scanbtn" type="button" aria-pressed="false">Scanner: Off</button>
+              <span id="scanpos" class="hint">A line sweeps the image in 30 s, playing every color it crosses, one by one.</span>
+            </div>
 
             <label>
               Which hue plays which note
@@ -479,7 +520,7 @@
           </div>
 
           <p class="hint">
-            Hold a chord button to play it yourself. Grey, white and black are rests.
+            Hold a chord button to play it yourself. Grey, white and black play open chords in the current key (black deep, white bright). Turn the scanner on for a slow line that plays every color it crosses.
           </p>
         </section>
 
@@ -538,7 +579,7 @@
         </p>
 
         <p class="hint" id="version">
-          Version 2026-10-29d: music mode (chord pad only), friction slider, 120-click memory, head check</p>
+          Version 2026-10-29h: music mode (every color sounds; scanner plays all rows in the chord's scale), friction slider, 120-click memory, head check</p>
         </details>
       </aside>
 
@@ -657,7 +698,8 @@
           sector: Math.round(hue / 30) % 12,   // 0-11, each hue sector is 30 degrees
           quality,
           size,
-          rest: sat < MUSIC.minSaturation || value < MUSIC.minBrightness
+          rest: sat < MUSIC.minSaturation || value < MUSIC.minBrightness,
+          achromatic: sat < MUSIC.minSaturation || value < MUSIC.minBrightness   // grey, white or black
         };
       }
 
@@ -716,14 +758,41 @@
         };
       }
 
-      // Color in, chord out (chord is null for a rest).
+      // The root of the last real (colored) chord. Grey, white and black have
+      // no hue, so they play in this key instead of jumping to a new one.
+      let keyRoot = 0;
+
+      // Grey, white and black: an open root + fifth + octave chord in the
+      // current key. Black sounds an octave lower (deep), white an octave
+      // higher (bright), greys in between.
+      function buildAchromaticChord(value, order) {
+        const sector = order === "fifths" ? (keyRoot * 7) % 12 : keyRoot;
+        const base = buildChord(sector, "neutral", 3, order);
+
+        const band = value < 0.35 ? "deep" : value > 0.7 ? "bright" : "mid";
+        const shift = band === "deep" ? -12 : band === "bright" ? 12 : 0;
+
+        const padMidi = base.padMidi.map(m => m + shift);
+        const label = { deep: "deep", mid: "grey", bright: "bright" }[band];
+
+        return Object.assign({}, base, {
+          key: `grey-${band}-${keyRoot}-${order}`,
+          achromatic: true,
+          padMidi,
+          plateMidi: base.plateMidi.map(m => m + shift),
+          name: NOTE_NAMES[keyRoot] + "5 open (" + label + ")",
+          noteNames: [...new Set(padMidi.map(m => NOTE_NAMES[((m % 12) + 12) % 12]))]
+        });
+      }
+
+      // Color in, chord out. Every color makes a sound.
       function chordForColor(r, g, b, order) {
         const analysis = analyzeColor(r, g, b);
 
         return {
           analysis,
-          chord: analysis.rest
-            ? null
+          chord: analysis.achromatic
+            ? buildAchromaticChord(analysis.value, order)
             : buildChord(analysis.sector, analysis.quality, analysis.size, order)
         };
       }
@@ -793,6 +862,19 @@
           reverb.connect(reverbWet);
           reverbWet.connect(compressor);
           mix.connect(compressor);
+
+          // Chimes and mallets get their own bus: no chorus wobble, a long
+          // shimmering reverb, and they can be panned left and right.
+          this.chime = ctx.createGain();
+          const chimeReverb = ctx.createConvolver();
+          chimeReverb.buffer = OmniSynth.makeRoom(ctx, 3.6);
+          const chimeWet = ctx.createGain();
+          chimeWet.gain.value = 0.7;
+          this.chime.connect(compressor);
+          this.chime.connect(chimeReverb);
+          chimeReverb.connect(chimeWet);
+          chimeWet.connect(compressor);
+
           compressor.connect(this.master);
           this.master.connect(ctx.destination);
         }
@@ -933,6 +1015,71 @@
           }
         }
 
+
+        // One scanner note. It is a blend of two sounds: the plucked "chord"
+        // sound (triangle + a little saw + overtones, through the same filter,
+        // chorus and reverb as the pad, so it blends with the chord) and a soft
+        // struck-bar bell. "harsh" says how much is the plucked sound:
+        // 0.75 = 75 percent pluck, 25 percent bell. Each note can also sit
+        // left or right in the stereo field.
+        mallet(midi, when, velocity = 0.2, pan = 0, harsh = 0.75) {
+          const ctx = this.ctx;
+          const freq = mtof(midi);
+
+          // A little chain per sound: gain -> (stereo position) -> destination.
+          const chain = destination => {
+            const input = ctx.createGain();
+            let last = input;
+
+            if (ctx.createStereoPanner) {
+              const panner = ctx.createStereoPanner();
+              panner.pan.value = Math.max(-1, Math.min(1, pan));
+              input.connect(panner);
+              last = panner;
+            }
+
+            last.connect(destination);
+            return input;
+          };
+
+          const soften = ctx.createBiquadFilter();
+          soften.type = "lowpass";
+          soften.frequency.value = 5200;
+          soften.connect(this.chime);
+
+          const pluckBus = chain(this.input);    // same chain as the chord pad
+          const bellBus = chain(soften);
+
+          // [bus, wave, frequency multiple, loudness, ring seconds, detune cents]
+          const parts = [
+            [pluckBus, "triangle", 1,    harsh * 1.00, 1.8, 0],
+            [pluckBus, "sawtooth", 1,    harsh * 0.22, 1.2, 3],
+            [pluckBus, "sine",     2,    harsh * 0.35, 1.0, 0],
+            [pluckBus, "sine",     3,    harsh * 0.12, 0.6, 0],
+            [bellBus,  "sine",     1,    (1 - harsh) * 1.00, 3.5, 0],
+            [bellBus,  "sine",     2.76, (1 - harsh) * 0.22, 0.55, 0],
+            [bellBus,  "sine",     5.40, (1 - harsh) * 0.07, 0.22, 0]
+          ];
+
+          for (const [bus, type, multiple, level, length, cents] of parts) {
+            const oscillator = ctx.createOscillator();
+            const partGain = ctx.createGain();
+
+            oscillator.type = type;
+            oscillator.frequency.value = freq * multiple;
+            oscillator.detune.value = cents;
+
+            partGain.gain.setValueAtTime(0.0001, when);
+            partGain.gain.linearRampToValueAtTime(level * velocity, when + 0.006);
+            partGain.gain.exponentialRampToValueAtTime(0.0001, when + length);
+
+            oscillator.connect(partGain);
+            partGain.connect(bus);
+            oscillator.start(when);
+            oscillator.stop(when + length + 0.05);
+          }
+        }
+
         // Pluck a list of notes one after another, like a finger swept across
         // the Omnichord's strum plate. Returns the notes in the order played.
         strum(notes, { down = false, spacing = 0.055, when = this.ctx.currentTime } = {}) {
@@ -1060,7 +1207,7 @@
           let text = "";
 
           if (analysis && analysis.rest) {
-            text = "No real color here (grey, white or black), so it is a rest.";
+            text = "Grey, white or black has no hue, so it plays an open chord in the current key: black is deep, white is bright. rgb(" + analysis.r + ", " + analysis.g + ", " + analysis.b + ")";
           } else if (analysis) {
             const strongest = analysis.quality === "neutral"
               ? "channels about equal, so neutral"
@@ -1114,6 +1261,7 @@
         function commit(chord) {
           current = chord;
           currentKey = chord ? chord.key : "rest";
+          if (chord && !chord.achromatic) keyRoot = chord.root;
 
           synth.setChord(chord ? chord.padMidi : null);
           renderChord(chord);
@@ -1232,6 +1380,7 @@
         }
 
         function disable() {
+          if (window.__scanner) window.__scanner.setScan(false);
           on = false;
           held = null;
           lastColor = null;
@@ -1267,6 +1416,268 @@
         $("vol").addEventListener("input", () => {
           if (synth) synth.setVolume(Number($("vol").value));
         });
+
+
+        // ---------- the hue scanner: a slow line that plays the colors it crosses ----------
+
+        const SCAN = {
+          sweepSeconds: 30,   // time for the line to cross the whole image
+          steps: 12,          // how many times it stops to play a column
+          rows: 12,           // colors sampled down the line = notes per column
+          fillSeconds: 2.2,   // the notes of one stop are spread over about this long
+          minGap: 0.16,       // never closer together than this (seconds)
+          maxGap: 0.5,        // never farther apart than this (seconds)
+          topMidi: 96,        // the run wraps back down below this note (C7)
+          baseMidi: 72,       // lowest possible note (C5)
+          velocity: 0.2,      // loudness of each note (0 to 1)
+          harsh: 0.75,        // 0 = soft bell, 1 = plucked chord sound
+          greyLowMidi: 48,    // black plays about here (C3) ...
+          repeatStep: 2       // a repeated color climbs this many scale steps (2 = a third)
+        };
+
+        const scanLine = $("scanline");
+        const xylo = $("xylo");
+        let scanOn = false;
+        let scanStart = 0;
+        let scanFrame = 0;
+        let scanStep = -1;
+        let scanDots = [];
+        let xyloKeys = [];
+
+        function sampleBand(x, y) {
+          // Median color of a small box around (x, y) on the image.
+          const w = 12;
+          const h = Math.max(6, Math.round(cv.height / SCAN.rows / 2));
+          const x0 = Math.max(0, Math.min(cv.width - w, Math.round(x - w / 2)));
+          const y0 = Math.max(0, Math.min(cv.height - h, Math.round(y - h / 2)));
+          const d = ctx2d().getImageData(x0, y0, w, h).data;
+          const rs = [], gs = [], bs = [];
+          for (let i = 0; i < d.length; i += 4) {
+            rs.push(d[i]); gs.push(d[i + 1]); bs.push(d[i + 2]);
+          }
+          const med = a => { a.sort((p, q) => p - q); return a[a.length >> 1]; };
+          return [med(rs), med(gs), med(bs)];
+        }
+
+        function ctx2d() { return cv.getContext("2d", { willReadFrequently: true }); }
+
+        // The 12 notes the line crosses at horizontal position fraction (0 to 1).
+        function scanColumn(fraction) {
+          const x = fraction * cv.width;
+          const notes = [];
+
+          for (let row = 0; row < SCAN.rows; row++) {
+            const y = (row + 0.5) / SCAN.rows * cv.height;
+            const [r, g, b] = sampleBand(x, y);
+            const a = analyzeColor(r, g, b);
+            const pc = a.achromatic ? null : rootOf(a.sector, order);
+            notes.push({ row, rgb: [r, g, b], pc, sat: a.sat, value: a.value, grey: a.achromatic });
+          }
+
+          return notes;
+        }
+
+        // To sound good with the chord that is playing, every scanner note is
+        // moved to the nearest note of that chord's own 7-note scale (major and
+        // open chords: major scale, minor: natural minor, sus: mixolydian).
+        // Any mix of those notes agrees with the chord, like on an Omnichord.
+        const SCALES = {
+          major:   [0, 2, 4, 5, 7, 9, 11],
+          neutral: [0, 2, 4, 5, 7, 9, 11],
+          minor:   [0, 2, 3, 5, 7, 8, 10],
+          sus:     [0, 2, 4, 5, 7, 9, 10]
+        };
+
+        function chordKey() {
+          return {
+            rootPc: current ? (current.achromatic ? keyRoot : current.root) : keyRoot,
+            scale: SCALES[current && !current.achromatic ? current.quality : "major"]
+          };
+        }
+
+        function fitToChord(pc) {
+          const { rootPc, scale } = chordKey();
+          const rel = (pc - rootPc + 12) % 12;
+
+          let best = scale[0];
+          let bestDistance = 99;
+
+          for (const degree of scale) {
+            const raw = Math.abs(degree - rel);
+            const distance = Math.min(raw, 12 - raw);
+
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              best = degree;
+            }
+          }
+
+          return (rootPc + best) % 12;
+        }
+
+        // Every scale note between two MIDI notes, lowest first.
+        function ladder(low, high) {
+          const { rootPc, scale } = chordKey();
+          const list = [];
+
+          for (let m = low; m <= high; m++) {
+            if (scale.includes(((m - rootPc) % 12 + 12) % 12)) list.push(m);
+          }
+
+          return list;
+        }
+
+        // One note per row, so nothing in the image is hidden:
+        //  - a colored row plays its hue (fitted to the chord's scale);
+        //  - when the SAME note comes up row after row, each repeat climbs
+        //    a third (2 scale steps) so you can hear that it is repeating;
+        //  - grey, white and black play by brightness: black is the lowest
+        //    note, white the highest, greys in between.
+        function distinctNotes(notes) {
+          const high = ladder(SCAN.baseMidi, SCAN.topMidi);
+          const wide = ladder(SCAN.greyLowMidi, SCAN.topMidi);
+
+          const groups = [];
+          let previousPc = null;
+          let repeats = 0;
+
+          for (const n of notes) {
+            let pc;
+            let midi;
+
+            if (n.grey) {
+              midi = wide[Math.round(n.value * (wide.length - 1))];
+              pc = midi % 12;
+              previousPc = null;
+              repeats = 0;
+            } else {
+              pc = fitToChord(n.pc);
+              repeats = pc === previousPc ? repeats + 1 : 0;
+              previousPc = pc;
+
+              const start = high.findIndex(m => m % 12 === pc);
+              midi = high[(start + repeats * SCAN.repeatStep) % high.length];
+            }
+
+            groups.push({ pc, midi, rows: [n.row], rgb: n.rgb, sat: n.sat, grey: n.grey, repeats });
+          }
+
+          return groups;
+        }
+
+        function playColumn(fraction, step = 0) {
+          const notes = scanColumn(fraction);
+
+          // Show every dot's real color, even the ones that stay silent.
+          notes.forEach((n, i) => {
+            scanDots[i].style.background = "rgb(" + n.rgb.join(",") + ")";
+          });
+
+          const groups = distinctNotes(notes);
+
+          // Every other stop goes the other way: down the line, then up it.
+          const goingUp = step % 2 === 1;
+          if (goingUp) groups.reverse();
+
+          const t0 = ctx.currentTime + 0.05;
+          const gap = Math.min(SCAN.maxGap, Math.max(SCAN.minGap, SCAN.fillSeconds / Math.max(1, groups.length)));
+
+          groups.forEach((g, i) => {
+            // A tiny random wobble in timing, loudness and position keeps it
+            // sounding played by hand instead of by a machine.
+            const when = t0 + i * gap + (Math.random() - 0.5) * 0.03;
+            const loud = SCAN.velocity * (0.75 + 0.25 * (g.grey ? 0.5 : g.sat)) * (0.85 + Math.random() * 0.3);
+            const pan = Math.max(-0.7, Math.min(0.7, ((g.midi - SCAN.greyLowMidi) / (SCAN.topMidi - SCAN.greyLowMidi)) * 1.4 - 0.7));
+
+            synth.mallet(g.midi, when, loud, pan, SCAN.harsh);
+
+            setTimeout(() => {
+              if (!scanOn) return;
+              const key = xyloKeys[g.pc];
+              if (key) key.classList.add("hit");
+              for (const row of g.rows) scanDots[row].classList.add("hit");
+
+              setTimeout(() => {
+                if (key) key.classList.remove("hit");
+                for (const row of g.rows) scanDots[row].classList.remove("hit");
+              }, 320);
+            }, Math.max(0, (when - ctx.currentTime) * 1000));
+          });
+
+          return groups;
+        }
+
+        function scanTick() {
+          if (!scanOn) return;
+
+          const elapsed = (performance.now() - scanStart) / 1000;
+          const fraction = (elapsed % SCAN.sweepSeconds) / SCAN.sweepSeconds;
+
+          const rect = cv.getBoundingClientRect();
+          scanLine.style.left = (rect.left + fraction * rect.width) + "px";
+          scanLine.style.top = rect.top + "px";
+          scanLine.style.height = rect.height + "px";
+          $("scanpos").textContent =
+            "Line at " + Math.round(fraction * 100) + "% · " +
+            Math.max(0, Math.ceil(SCAN.sweepSeconds - (elapsed % SCAN.sweepSeconds))) + " s to the end";
+
+          const step = Math.floor(fraction * SCAN.steps);
+          if (step !== scanStep) {
+            scanStep = step;
+            playColumn(fraction, step);
+          }
+
+          scanFrame = requestAnimationFrame(scanTick);
+        }
+
+        function setScan(value) {
+          value = value && on;
+          if (value === scanOn) return;
+          scanOn = value;
+
+          const btn = $("scanbtn");
+          btn.textContent = "Scanner: " + (scanOn ? "On" : "Off");
+          btn.classList.toggle("on", scanOn);
+          btn.setAttribute("aria-pressed", String(scanOn));
+          xylo.hidden = !scanOn;
+          scanLine.style.display = scanOn ? "block" : "none";
+          cancelAnimationFrame(scanFrame);
+
+          if (!scanOn) {
+            $("scanpos").textContent =
+              "A line sweeps the image in 30 s, playing its notes one by one like wind chimes.";
+            return;
+          }
+
+          scanLine.innerHTML = "";
+          scanDots = [];
+          for (let i = 0; i < SCAN.rows; i++) {
+            const dot = document.createElement("span");
+            dot.className = "sd";
+            dot.style.top = ((i + 0.5) / SCAN.rows * 100) + "%";
+            scanLine.appendChild(dot);
+            scanDots.push(dot);
+          }
+
+          xylo.innerHTML = "";
+          xyloKeys = [];
+          for (let i = 0; i < 12; i++) {
+            const key = document.createElement("div");
+            key.className = "xk";
+            key.textContent = NOTE_NAMES[i];
+            xylo.appendChild(key);
+            xyloKeys.push(key);
+          }
+
+          scanStart = performance.now();
+          scanStep = -1;
+          ctx.resume();
+          scanFrame = requestAnimationFrame(scanTick);
+        }
+
+        $("scanbtn").addEventListener("click", () => setScan(!scanOn));
+
+        window.__scanner = { SCAN, scanColumn, setScan, isOn: () => scanOn, playColumn, distinctNotes, fitToChord, setCurrent: c => { current = c; if (c && !c.achromatic) keyRoot = c.root; } };
 
         $("strum").addEventListener("change", () => {
           strumMode = $("strum").value;
