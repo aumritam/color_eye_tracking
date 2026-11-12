@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Eye-Tracking Color Identifier</title>
 
-  <!-- Load a fixed WebGazer version instead of the changing master branch -->
-  <script src="https://cdn.jsdelivr.net/npm/webgazer@3.5.3/dist/webgazer.min.js"></script>
+  <!-- WebGazer 3.5.3, stored locally so the page works without the internet -->
+  <script src="./webgazer.js"></script>
+
+  <!-- PCA Omnisphere tab: Anjali's PCA analysis (ported) + the PCA chord instrument -->
+  <script src="./pca-omnisphere.js"></script>
 
   <style>
     :root {
@@ -256,9 +259,38 @@
       margin: 2px 0 4px;
     }
 
+    /* Music mode tabs: Omnichord | PCA Omnisphere */
+    .tabs { display: flex; gap: 4px; margin: 4px 0 10px; border-bottom: 2px solid #ddd; }
+    .tabs button {
+      border: 1px solid #ccc; border-bottom: none; border-radius: 6px 6px 0 0;
+      padding: 6px 12px; background: #f4f4f4; color: #555; margin-bottom: -2px;
+    }
+    .tabs button[aria-selected="true"] {
+      background: #fff; color: #b4236b; border-color: #b4236b;
+      border-bottom: 2px solid #fff;
+    }
+    .tabpane[hidden], .scanrow[hidden] { display: none; }
+
+    /* PCA Omnisphere */
+    .pca-overlay { position: fixed; pointer-events: none; z-index: 4; border-radius: 8px; }
+    .pca-overlay[hidden] { display: none; }
+    .pcachord { font-size: 24px; font-weight: 700; line-height: 1.15; }
+    .pcabars { margin: 10px 0 6px; display: grid; gap: 4px; }
+    .pcabar { display: grid; grid-template-columns: 62px 1fr 46px; align-items: center; gap: 6px; font-size: 12px; }
+    .pcalabel { font-weight: 650; color: #444; }
+    .pcatrack { position: relative; height: 12px; background: #eee; border-radius: 6px; overflow: hidden; }
+    .pcafill { position: absolute; top: 0; bottom: 0; left: 50%; width: 0; transition: width 0.12s, left 0.12s; }
+    .pcazero { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #888; }
+    .pcaval { font-variant-numeric: tabular-nums; text-align: right; color: #333; }
+    .pcacontrols { display: grid; gap: 6px; margin: 8px 0; }
+    .pcacontrols select { width: 100%; margin-top: 2px; }
+
+    .keyrow { display: flex; gap: 6px; margin-top: 4px; }
+    .keyrow select { flex: 1; }
+
     .chordgrid {
       display: grid;
-      grid-template-columns: 30px repeat(12, 1fr);
+      grid-template-columns: 38px repeat(7, 1fr);
       gap: 2px;
       margin: 10px 0 6px;
       touch-action: none;
@@ -489,13 +521,23 @@
         <section id="musicpanel" class="music" hidden>
           <h3>♪ Music mode</h3>
 
-          <div id="chordname" class="chordname">Rest (silence)</div>
-          <div id="chordnotes" class="chordnotes">Look at a colorful part of the image.</div>
-          <div id="chordwhy" class="hint"></div>
+          <div class="tabs" role="tablist" aria-label="Instrument">
+            <button type="button" role="tab" id="tab-omni" data-tab="omni" aria-selected="true" aria-controls="pane-omni">Omnichord</button>
+            <button type="button" role="tab" id="tab-pca" data-tab="pca" aria-selected="false" aria-controls="pane-pca">PCA Omnisphere</button>
+          </div>
 
-          <div id="chordgrid" class="chordgrid" aria-label="Chord buttons"></div>
-          <div id="plate" class="plate" aria-label="Strum plate" hidden style="display:none"></div>
-          <div id="xylo" class="xylo" aria-label="Scanner notes" hidden></div>
+          <div id="pane-omni" class="tabpane" role="tabpanel" aria-labelledby="tab-omni">
+            <div id="chordname" class="chordname">Rest (silence)</div>
+            <div id="chordnotes" class="chordnotes">Look at a colorful part of the image.</div>
+            <div id="chordwhy" class="hint"></div>
+
+            <div id="chordgrid" class="chordgrid" aria-label="Chord buttons"></div>
+            <div id="plate" class="plate" aria-label="Strum plate" hidden style="display:none"></div>
+            <div id="xylo" class="xylo" aria-label="Scanner notes" hidden></div>
+          </div>
+
+          <!-- Filled in by pca-omnisphere.js -->
+          <div id="pane-pca" class="tabpane" role="tabpanel" aria-labelledby="tab-pca" hidden></div>
 
           <div class="musiccontrols">
             <label>
@@ -505,22 +547,29 @@
 
             <select id="strum" hidden style="display:none"><option value="off" selected>off</option></select>
 
-            <div class="scanrow">
+            <div class="scanrow" id="scanrow">
               <button id="scanbtn" type="button" aria-pressed="false">Scanner: Off</button>
               <span id="scanpos" class="hint">A line sweeps the image in 30 s, playing every color it crosses, one by one.</span>
             </div>
 
             <label>
-              Which hue plays which note
-              <select id="order">
-                <option value="hue" selected>Hue scanner: red = C, then C♯, D, D♯...</option>
-                <option value="fifths">Omnichord: circle of fifths (C, G, D, A...)</option>
-              </select>
+              Key <span id="keysource" class="hint"></span>
+              <span class="keyrow">
+                <select id="keyroot" aria-label="Key root note"></select>
+                <select id="keymode" aria-label="Key scale">
+                  <option value="major">Major</option>
+                  <option value="minor">Minor</option>
+                  <option value="dorian">Dorian</option>
+                  <option value="phrygian">Phrygian</option>
+                  <option value="mixolydian">Mixolydian</option>
+                  <option value="minorPentatonic">Minor pentatonic</option>
+                </select>
+              </span>
             </label>
           </div>
 
-          <p class="hint">
-            Hold a chord button to play it yourself. Grey, white and black play open chords in the current key (black deep, white bright). Turn the scanner on for a slow line that plays every color it crosses.
+          <p class="hint" id="omnihint">
+            Everything stays in the key above. Hold a chord button to play it yourself. Grey, white and black play the key's home chord, open (black deep, white bright). Turn the scanner on for a slow line that plays every color it crosses.
           </p>
         </section>
 
@@ -566,9 +615,21 @@
           <li>
             <strong>Music mode:</strong>
             Click <em>Music mode</em> to turn colors into chords. Where you
-            look (or hover with the mouse) decides the chord: hue picks the
-            note, saturation picks how many notes, and red / green / blue picks
-            major / minor / sus. It works with eye tracking or mouse mode.
+            look (or hover with the mouse) decides the chord: everything stays in the artwork's key
+            (picked by the AI). Hue picks which note of the scale the chord
+            starts on (red = the home note), saturation picks how many notes,
+            and red / green / blue picks the shape: normal chord / sus / open. It works with eye tracking or mouse mode.
+          </li>
+          <li>
+            <strong>PCA Omnisphere tab:</strong>
+            In Music mode, open the <em>PCA Omnisphere</em> tab. The image is
+            cut into about 200 patches and each one is boiled down to 5
+            numbers (principal components) using Anjali's PCA method. The
+            grid shows PC1: blue = calm, red = busy. The patches under your
+            gaze ring pick the chord: PC1 = which chord of the key (busier =
+            more tense), PC2 = how many notes, PC3 = the shape. All 5 PCs set
+            the pad's tone colour. Switch <em>Sound</em> to hear Anjali's
+            original overtone tones instead.
           </li>
         </ol>
 
@@ -579,7 +640,7 @@
         </p>
 
         <p class="hint" id="version">
-          Version 2026-10-29h: music mode (every color sounds; scanner plays all rows in the chord's scale), friction slider, 120-click memory, head check</p>
+          Version 2026-11-12: PCA Omnisphere tab (Anjali's PCA + gaze-driven chords). 2026-11-05: music locked to the artwork's key (picked by the AI). 2026-10-29h: music mode (every color sounds; scanner plays all rows in the chord's scale), friction slider, 120-click memory, head check</p>
         </details>
       </aside>
 
@@ -604,16 +665,22 @@
       // --------------------------------------------------
       // 0b. MUSIC MODE: A COLOR BECOMES A CHORD (PLAYED LIKE AN OMNICHORD)
       // --------------------------------------------------
-      // How a color becomes a chord (the hue scanner's rules):
-      //   hue          -> the root note (12 hues = 12 notes, red = C)
+      // Everything plays in ONE key: the key the AI picked for the artwork
+      // (passed in the page address as ?root=D&mode=dorian). It never moves.
+      //
+      // How a color becomes a chord (the hue scanner's rules, in that key):
+      //   hue          -> which note of the scale the chord starts on. The
+      //                   color wheel is cut into 7 slices, red = the home note.
       //   saturation   -> how many notes are in the chord (1 to 4)
-      //   strongest    -> the flavor of the chord: red = major, green = minor,
-      //   RGB channel     blue = sus, channels that are about equal = neutral
-      // Grey, white and black have no hue, so they are a rest (silence).
+      //   strongest    -> the chord's shape: red = normal (stacked thirds),
+      //   RGB channel     green = sus (a 4th instead of the 3rd),
+      //                   blue or no clear winner = open (root, 5th, octave)
+      // Whether a chord is major or minor comes from the scale itself, so
+      // every note always fits the key. Grey, white and black play the
+      // key's home chord, open.
       //
       // How it sounds is borrowed from the Omnichord: a smooth, sustained
-      // chord "pad" underneath, plus harp-like plucks across the chord's
-      // notes (the Omnichord's strum plate).
+      // chord "pad" underneath, plus harp-like plucks across the chord's notes.
 
       const NOTE_NAMES = [
         "C", "C♯", "D", "D♯", "E", "F",
@@ -621,8 +688,8 @@
       ];
 
       const MUSIC = {
-        minSaturation: 0.12,          // less colorful than this = no hue = rest
-        minBrightness: 0.12,          // darker than this = black = rest
+        minSaturation: 0.12,          // less colorful than this = no hue = grey
+        minBrightness: 0.12,          // darker than this = black
         sizeSteps: [0.25, 0.5, 0.75], // saturation cut points for 2, 3, 4 notes
         neutralMargin: 0.15,          // strongest channel must beat the next by this much
         holdMs: 160,                  // a new chord must last this long before it plays
@@ -630,28 +697,73 @@
         loopSeconds: 2.4              // time between strums in Loop mode
       };
 
-      // Notes in each chord, by flavor and size (1 to 4 notes), in semitones
-      // above the root. Size 2 is always root + fifth; the flavor shows up
-      // from 3 notes. Neutral has no third at all (an open, empty sound).
-      const CHORD_SHAPES = {
-        major:   [[0], [0, 7], [0, 4, 7],  [0, 4, 7, 11]],
-        minor:   [[0], [0, 7], [0, 3, 7],  [0, 3, 7, 10]],
-        sus:     [[0], [0, 7], [0, 5, 7],  [0, 5, 7, 10]],
-        neutral: [[0], [0, 7], [0, 7, 12], [0, 7, 12, 19]]
+      // The same scales the main page uses (semitones above the home note).
+      const KEY_SCALES = {
+        major:           [0, 2, 4, 5, 7, 9, 11],
+        minor:           [0, 2, 3, 5, 7, 8, 10],
+        dorian:          [0, 2, 3, 5, 7, 9, 10],
+        phrygian:        [0, 1, 3, 5, 7, 8, 10],
+        mixolydian:      [0, 2, 4, 5, 7, 9, 10],
+        minorPentatonic: [0, 3, 5, 7, 10]
       };
 
-      const QUALITY_ROWS = ["major", "minor", "sus", "neutral"];
+      const MODE_LABELS = {
+        major: "Major", minor: "Minor", dorian: "Dorian",
+        phrygian: "Phrygian", mixolydian: "Mixolydian",
+        minorPentatonic: "Minor pentatonic"
+      };
+
+      // The key. Read from the page address; C major if nothing was passed.
+      const KEY = (() => {
+        const params = new URLSearchParams(location.search);
+        const rootName = (params.get("root") || "").replace("#", "♯");
+        const rootIndex = NOTE_NAMES.indexOf(rootName);
+        const mode = KEY_SCALES[params.get("mode")] ? params.get("mode") : null;
+
+        return {
+          root: rootIndex >= 0 ? rootIndex : 0,
+          mode: mode || "major",
+          fromAI: rootIndex >= 0 && Boolean(mode)
+        };
+      })();
+
+      // Chords need 7 notes to stack, so the pentatonic key builds its chords
+      // from natural minor (the same thing the main page does). The scanner
+      // still plays only the 5 pentatonic notes.
+      const chordScale = () =>
+        KEY.mode === "minorPentatonic" ? KEY_SCALES.minor : KEY_SCALES[KEY.mode];
+
+      const keyName = () => NOTE_NAMES[KEY.root] + " " + MODE_LABELS[KEY.mode];
+
+      // Semitones from the home note to scale step i (step 7 = one octave up).
+      function stepSemis(i) {
+        const scale = chordScale();
+        const octave = Math.floor(i / scale.length);
+        return 12 * octave + scale[((i % scale.length) + scale.length) % scale.length];
+      }
+
+      // Chord shapes in SCALE STEPS above the chord's starting note, by size
+      // (1 to 4 notes). 2 steps = a third, 3 = a fourth, 4 = a fifth,
+      // 6 = a seventh, 7 = an octave. Size 2 is always root + fifth.
+      const CHORD_SHAPES = {
+        stack: [[0], [0, 4], [0, 2, 4], [0, 2, 4, 6]],
+        sus:   [[0], [0, 4], [0, 3, 4], [0, 3, 4, 6]],
+        open:  [[0], [0, 4], [0, 4, 7], [0, 4, 7, 11]]
+      };
+
+      const QUALITY_ROWS = ["stack", "sus", "open"];
 
       const QUALITY_LABELS = {
-        major: "Maj",
-        minor: "Min",
+        stack: "Chord",
         sus: "Sus",
-        neutral: "Open"
+        open: "Open"
       };
+
+      const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII"];
 
       const mtof = midi => 440 * Math.pow(2, (midi - 69) / 12);
 
-      // Work out hue, saturation and flavor from an RGB color (0-255).
+      // Work out hue, saturation and shape from an RGB color (0-255).
       function analyzeColor(r, g, b) {
         const max = Math.max(r, g, b);
         const min = Math.min(r, g, b);
@@ -680,10 +792,10 @@
         const sorted = [r, g, b].sort((a, c) => c - a);
         const margin = max === 0 ? 0 : (sorted[0] - sorted[1]) / max;
 
-        let quality = "neutral";
+        let quality = "open";
 
         if (margin >= MUSIC.neutralMargin) {
-          quality = max === r ? "major" : max === g ? "minor" : "sus";
+          quality = max === r ? "stack" : max === g ? "sus" : "open";
         }
 
         let size = 1;
@@ -692,10 +804,13 @@
           if (sat >= cut) size++;
         }
 
+        // 7 slices of the color wheel, centred so pure red = the home note.
+        const slice = 360 / 7;
+
         return {
           r, g, b,
           hue, sat, value,
-          sector: Math.round(hue / 30) % 12,   // 0-11, each hue sector is 30 degrees
+          sector: Math.round(hue / slice) % 7,   // 0-6 = scale degree
           quality,
           size,
           rest: sat < MUSIC.minSaturation || value < MUSIC.minBrightness,
@@ -703,71 +818,108 @@
         };
       }
 
-      // Which note a hue sector plays. "hue" order is chromatic (red = C,
-      // next hue = C#, ...). "fifths" is the Omnichord's order (C, G, D, ...),
-      // where neighboring colors make chords that sound good together.
-      const rootOf = (sector, order) =>
-        order === "fifths" ? (sector * 7) % 12 : sector;
+      // The note (0-11) that scale degree d starts on.
+      const degreePc = degree => (KEY.root + stepSemis(degree)) % 12;
 
-      function chordName(root, quality, size) {
-        const note = NOTE_NAMES[root];
-
-        if (size === 1) return note + " (single note)";
-        if (size === 2) return note + "5";
-
-        const suffix = {
-          major: ["", "maj7"],
-          minor: ["m", "m7"],
-          sus: ["sus4", "7sus4"],
-          neutral: ["5 (open)", "5 (open, wide)"]
-        }[quality][size - 3];
-
-        return note + suffix;
+      // What kind of triad the scale builds on a degree.
+      function triadType(degree) {
+        const third = stepSemis(degree + 2) - stepSemis(degree);
+        const fifth = stepSemis(degree + 4) - stepSemis(degree);
+        if (third === 4 && fifth === 7) return "major";
+        if (third === 3 && fifth === 7) return "minor";
+        if (third === 3 && fifth === 6) return "dim";
+        if (third === 4 && fifth === 8) return "aug";
+        return "major";
       }
 
-      function buildChord(sector, quality, size, order) {
-        const root = rootOf(sector, order);
-        const intervals = CHORD_SHAPES[quality][size - 1];
+      // Roman numeral for a degree: upper case = major, lower case = minor.
+      function romanOf(degree) {
+        const type = triadType(degree);
+        const numeral = ROMAN[degree];
+        if (type === "minor") return numeral.toLowerCase();
+        if (type === "dim") return numeral.toLowerCase() + "°";
+        if (type === "aug") return numeral + "+";
+        return numeral;
+      }
+
+      function chordName(degree, quality, size) {
+        const note = NOTE_NAMES[degreePc(degree)];
+        const roman = " (" + romanOf(degree) + ")";
+
+        if (size === 1) return note + " (single note)" + roman;
+        if (size === 2) {
+          const fifth = stepSemis(degree + 4) - stepSemis(degree);
+          return note + (fifth === 7 ? "5" : fifth === 6 ? "(♭5)" : "(♯5)") + roman;
+        }
+
+        if (quality === "open") {
+          return note + "5 (open" + (size === 4 ? ", wide" : "") + ")" + roman;
+        }
+
+        const seventh = stepSemis(degree + 6) - stepSemis(degree);
+
+        if (quality === "sus") {
+          const fourth = stepSemis(degree + 3) - stepSemis(degree);
+          const sus = fourth === 5 ? "sus4" : "sus♯4";
+          if (size === 3) return note + sus + roman;
+          return note + (seventh === 11 ? "maj7" : "7") + sus + roman;
+        }
+
+        const type = triadType(degree);
+        const triad = { major: "", minor: "m", dim: "dim", aug: "aug" }[type];
+
+        if (size === 3) return note + triad + roman;
+
+        let seventhName;
+        if (type === "major") seventhName = seventh === 11 ? "maj7" : "7";
+        else if (type === "minor") seventhName = seventh === 11 ? "m(maj7)" : "m7";
+        else if (type === "dim") seventhName = seventh === 10 ? "m7♭5" : "dim7";
+        else seventhName = "aug7";
+
+        return note + seventhName + roman;
+      }
+
+      function buildChord(degree, quality, size) {
+        const steps = CHORD_SHAPES[quality][size - 1];
+        const root = degreePc(degree);
 
         // The pad sits around the middle of the keyboard (C3 and up).
-        const padRoot = 48 + root - (root >= 6 ? 12 : 0);
-        const padMidi = intervals.map(interval => padRoot + interval);
+        const homeMidi = 48 + KEY.root - (KEY.root >= 6 ? 12 : 0);
+        let padMidi = steps.map(step => homeMidi + stepSemis(degree + step));
+
+        // Keep the pad from drifting too high on the upper degrees.
+        if (padMidi[0] >= 55) padMidi = padMidi.map(m => m - 12);
+
+        const intervals = padMidi.map(m => m - padMidi[0]);
 
         // The strum plate repeats the chord's notes over two higher octaves.
         const plate = new Set();
 
         for (let octave = 1; octave <= 2; octave++) {
-          for (const interval of intervals) {
-            plate.add(padRoot + 12 * octave + interval);
-          }
+          for (const m of padMidi) plate.add(m + 12 * octave);
         }
 
-        plate.add(padRoot + 36);
+        plate.add(padMidi[0] + 36);
 
         return {
-          key: `${sector}-${quality}-${size}-${order}`,
-          sector,
+          key: `${degree}-${quality}-${size}-${KEY.root}-${KEY.mode}`,
+          sector: degree,
           root,
           quality,
           size,
           intervals,
           padMidi,
           plateMidi: [...plate].sort((a, c) => a - c),
-          name: chordName(root, quality, size),
+          name: chordName(degree, quality, size),
           noteNames: [...new Set(padMidi.map(m => NOTE_NAMES[m % 12]))]
         };
       }
 
-      // The root of the last real (colored) chord. Grey, white and black have
-      // no hue, so they play in this key instead of jumping to a new one.
-      let keyRoot = 0;
-
-      // Grey, white and black: an open root + fifth + octave chord in the
-      // current key. Black sounds an octave lower (deep), white an octave
-      // higher (bright), greys in between.
-      function buildAchromaticChord(value, order) {
-        const sector = order === "fifths" ? (keyRoot * 7) % 12 : keyRoot;
-        const base = buildChord(sector, "neutral", 3, order);
+      // Grey, white and black: the key's home chord, open (root + fifth +
+      // octave). Black sounds an octave lower (deep), white an octave higher
+      // (bright), greys in between.
+      function buildAchromaticChord(value) {
+        const base = buildChord(0, "open", 3);
 
         const band = value < 0.35 ? "deep" : value > 0.7 ? "bright" : "mid";
         const shift = band === "deep" ? -12 : band === "bright" ? 12 : 0;
@@ -776,24 +928,24 @@
         const label = { deep: "deep", mid: "grey", bright: "bright" }[band];
 
         return Object.assign({}, base, {
-          key: `grey-${band}-${keyRoot}-${order}`,
+          key: `grey-${band}-${KEY.root}-${KEY.mode}`,
           achromatic: true,
           padMidi,
           plateMidi: base.plateMidi.map(m => m + shift),
-          name: NOTE_NAMES[keyRoot] + "5 open (" + label + ")",
+          name: NOTE_NAMES[KEY.root] + "5 open (" + label + ", home chord)",
           noteNames: [...new Set(padMidi.map(m => NOTE_NAMES[((m % 12) + 12) % 12]))]
         });
       }
 
       // Color in, chord out. Every color makes a sound.
-      function chordForColor(r, g, b, order) {
+      function chordForColor(r, g, b) {
         const analysis = analyzeColor(r, g, b);
 
         return {
           analysis,
           chord: analysis.achromatic
-            ? buildAchromaticChord(analysis.value, order)
-            : buildChord(analysis.sector, analysis.quality, analysis.size, order)
+            ? buildAchromaticChord(analysis.value)
+            : buildChord(analysis.sector, analysis.quality, analysis.size)
         };
       }
 
@@ -1103,8 +1255,8 @@
         let on = false;
         let ctx = null;
         let synth = null;
+        let paused = false;       // true while the PCA Omnisphere tab is playing instead
 
-        let order = "hue";        // "hue" or "fifths"
         let strumMode = "off";   // "loop", "change" or "off"
 
         let current = null;       // the chord that is sounding (null = silence)
@@ -1133,10 +1285,11 @@
 
           grid.appendChild(document.createElement("span"));
 
-          for (let sector = 0; sector < 12; sector++) {
+          for (let degree = 0; degree < 7; degree++) {
             const label = document.createElement("span");
             label.className = "ch";
-            label.textContent = NOTE_NAMES[rootOf(sector, order)];
+            label.textContent = NOTE_NAMES[degreePc(degree)];
+            label.title = romanOf(degree);
             grid.appendChild(label);
           }
 
@@ -1146,16 +1299,16 @@
             rowLabel.textContent = QUALITY_LABELS[quality];
             grid.appendChild(rowLabel);
 
-            for (let sector = 0; sector < 12; sector++) {
+            for (let degree = 0; degree < 7; degree++) {
               const cell = document.createElement("button");
               cell.type = "button";
               cell.className = "cell";
-              cell.dataset.sector = sector;
+              cell.dataset.sector = degree;
               cell.dataset.quality = quality;
-              cell.style.background = `hsl(${sector * 30}, 70%, 74%)`;
+              cell.style.background = `hsl(${degree * 360 / 7}, 70%, 74%)`;
               cell.setAttribute(
                 "aria-label",
-                NOTE_NAMES[rootOf(sector, order)] + " " + quality
+                NOTE_NAMES[degreePc(degree)] + " " + QUALITY_LABELS[quality]
               );
               grid.appendChild(cell);
             }
@@ -1207,15 +1360,16 @@
           let text = "";
 
           if (analysis && analysis.rest) {
-            text = "Grey, white or black has no hue, so it plays an open chord in the current key: black is deep, white is bright. rgb(" + analysis.r + ", " + analysis.g + ", " + analysis.b + ")";
+            text = "Grey, white or black has no hue, so it plays the home chord of " + keyName() + ", open: black is deep, white is bright. rgb(" + analysis.r + ", " + analysis.g + ", " + analysis.b + ")";
           } else if (analysis) {
-            const strongest = analysis.quality === "neutral"
-              ? "channels about equal, so neutral"
-              : { major: "red", minor: "green", sus: "blue" }[analysis.quality] +
-                " is strongest, so " + analysis.quality;
+            const strongest = {
+              stack: "red is strongest, so a normal chord",
+              sus: "green is strongest, so sus",
+              open: "blue is strongest or no clear winner, so open"
+            }[analysis.quality];
 
             text =
-              `Hue ${Math.round(analysis.hue)}° · saturation ` +
+              `Hue ${Math.round(analysis.hue)}° = step ${analysis.sector + 1} of ${keyName()} · saturation ` +
               `${Math.round(analysis.sat * 100)}% · rgb(${analysis.r}, ` +
               `${analysis.g}, ${analysis.b}) · ${strongest}`;
           }
@@ -1261,8 +1415,6 @@
         function commit(chord) {
           current = chord;
           currentKey = chord ? chord.key : "rest";
-          if (chord && !chord.achromatic) keyRoot = chord.root;
-
           synth.setChord(chord ? chord.padMidi : null);
           renderChord(chord);
 
@@ -1275,7 +1427,7 @@
         // not looking at the image). A new chord has to stay for a moment
         // before it plays, so a shaky gaze does not make the music flutter.
         function feed(color) {
-          if (!on) return;
+          if (!on || paused) return;
 
           lastColor = color;
 
@@ -1284,7 +1436,7 @@
           let result = null;
 
           if (color && !document.querySelector(".dot")) {
-            result = chordForColor(color.r, color.g, color.b, order);
+            result = chordForColor(color.r, color.g, color.b);
           }
 
           const chord = result ? result.chord : null;
@@ -1320,7 +1472,7 @@
         function pressChord(sector, quality) {
           if (!on) return;
 
-          held = buildChord(sector, quality, 3, order);
+          held = buildChord(sector, quality, 3);
           pendingKey = null;
           commit(held);
         }
@@ -1373,8 +1525,10 @@
           button.setAttribute("aria-pressed", "true");
 
           renderGrid();
-          renderPlate(buildChord(0, "major", 3, order));
+          renderPlate(buildChord(0, "stack", 3));
           renderChord(null);
+
+          if (window.__musicTabs) window.__musicTabs.sync();
 
           return true;
         }
@@ -1382,6 +1536,7 @@
         function disable() {
           if (window.__scanner) window.__scanner.setScan(false);
           on = false;
+          if (window.__musicTabs) window.__musicTabs.sync();
           held = null;
           lastColor = null;
           pendingKey = null;
@@ -1470,29 +1625,18 @@
             const y = (row + 0.5) / SCAN.rows * cv.height;
             const [r, g, b] = sampleBand(x, y);
             const a = analyzeColor(r, g, b);
-            const pc = a.achromatic ? null : rootOf(a.sector, order);
+            const pc = a.achromatic ? null : degreePc(a.sector);
             notes.push({ row, rgb: [r, g, b], pc, sat: a.sat, value: a.value, grey: a.achromatic });
           }
 
           return notes;
         }
 
-        // To sound good with the chord that is playing, every scanner note is
-        // moved to the nearest note of that chord's own 7-note scale (major and
-        // open chords: major scale, minor: natural minor, sus: mixolydian).
-        // Any mix of those notes agrees with the chord, like on an Omnichord.
-        const SCALES = {
-          major:   [0, 2, 4, 5, 7, 9, 11],
-          neutral: [0, 2, 4, 5, 7, 9, 11],
-          minor:   [0, 2, 3, 5, 7, 8, 10],
-          sus:     [0, 2, 4, 5, 7, 9, 10]
-        };
-
+        // Every scanner note is moved to the nearest note of the artwork's
+        // key (the one the AI picked), so the scanner and the chords always
+        // agree, like on an Omnichord.
         function chordKey() {
-          return {
-            rootPc: current ? (current.achromatic ? keyRoot : current.root) : keyRoot,
-            scale: SCALES[current && !current.achromatic ? current.quality : "major"]
-          };
+          return { rootPc: KEY.root, scale: KEY_SCALES[KEY.mode] };
         }
 
         function fitToChord(pc) {
@@ -1677,17 +1821,47 @@
 
         $("scanbtn").addEventListener("click", () => setScan(!scanOn));
 
-        window.__scanner = { SCAN, scanColumn, setScan, isOn: () => scanOn, playColumn, distinctNotes, fitToChord, setCurrent: c => { current = c; if (c && !c.achromatic) keyRoot = c.root; } };
+        window.__scanner = { SCAN, scanColumn, setScan, isOn: () => scanOn, playColumn, distinctNotes, fitToChord, setCurrent: c => { current = c; } };
 
         $("strum").addEventListener("change", () => {
           strumMode = $("strum").value;
         });
 
-        $("order").addEventListener("change", () => {
-          order = $("order").value;
-          renderGrid();
-          pendingKey = null;
+        // ---------- the key ----------
+
+        const keyRootSelect = $("keyroot");
+        const keyModeSelect = $("keymode");
+
+        NOTE_NAMES.forEach((name, index) => {
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent = name;
+          keyRootSelect.appendChild(option);
         });
+
+        function showKeySource() {
+          const fromAI = KEY.fromAI && KEY.root === KEY.aiRoot && KEY.mode === KEY.aiMode;
+          $("keysource").textContent = fromAI ? "(picked by the AI)" : "(changed by you)";
+        }
+
+        KEY.aiRoot = KEY.root;
+        KEY.aiMode = KEY.mode;
+        keyRootSelect.value = String(KEY.root);
+        keyModeSelect.value = KEY.mode;
+        if (!KEY.fromAI) $("keysource").textContent = "(no AI key found, using C Major)";
+        else showKeySource();
+
+        function changeKey() {
+          KEY.root = Number(keyRootSelect.value);
+          KEY.mode = keyModeSelect.value;
+          showKeySource();
+          pendingKey = null;
+          renderGrid();
+          if (on && current && !held) commit(null);
+        }
+
+        keyRootSelect.addEventListener("change", changeKey);
+        keyModeSelect.addEventListener("change", changeKey);
 
         // Chord buttons: hold one down to play it.
         const grid = $("chordgrid");
@@ -1771,12 +1945,26 @@
           }
         });
 
+        // The PCA Omnisphere tab takes over the sound: hush the Omnichord.
+        function setPaused(value) {
+          paused = Boolean(value);
+
+          if (paused) {
+            held = null;
+            lastColor = null;
+            pendingKey = null;
+            if (on && synth) commit(null);
+          }
+        }
+
         return {
           feed,
           toggle,
+          setPaused,
           isOn: () => on,
-          state: () => ({ on, chord: current, held }),
-          context: () => ctx
+          state: () => ({ on, chord: current, held, paused }),
+          context: () => ctx,
+          synth: () => synth
         };
       })();
 
@@ -1789,6 +1977,65 @@
         MUSIC,
         music
       };
+
+      // --------------------------------------------------
+      // 0e. PCA OMNISPHERE TAB
+      // --------------------------------------------------
+      // Anjali's PCA (pca-omnisphere.js) turns the image into a grid of
+      // patches with 5 principal components each. In this tab the gaze ring
+      // averages the PCs under it and they choose the chord instead of the
+      // colour: PC1 = which chord (busier = more tense), PC2 = how many
+      // notes, PC3 = shape, all 5 = the pad's tone colour.
+
+      const pcaMode = window.PCAOmni
+        ? window.PCAOmni.create({
+            canvas: cv,
+            panel: $("pane-pca"),
+            context: () => music.context(),
+            bus: () => music.synth().input,    // through the Omnichord's reverb
+            dry: () => music.synth().master,   // Anjali's original tones, dry
+            buildChord,
+            keyName,
+            status
+          })
+        : null;
+
+      window.__musicTabs = (() => {
+        let tab = "omni";
+        const tabs = [...document.querySelectorAll(".tabs [data-tab]")];
+
+        // Make the panel and the sound match the chosen tab and whether
+        // Music mode is on.
+        function sync() {
+          const playing = music.isOn();
+          const pca = tab === "pca" && Boolean(pcaMode);
+
+          tabs.forEach(button =>
+            button.setAttribute("aria-selected", String(button.dataset.tab === tab)));
+          $("pane-omni").hidden = pca;
+          $("pane-pca").hidden = !pca;
+          $("scanrow").hidden = pca;
+          $("omnihint").hidden = pca;
+
+          if (pca && playing) {
+            if (window.__scanner) window.__scanner.setScan(false);
+            music.setPaused(true);
+            pcaMode.activate();
+          } else {
+            if (pcaMode) pcaMode.deactivate();
+            music.setPaused(false);
+          }
+        }
+
+        tabs.forEach(button => button.addEventListener("click", () => {
+          tab = button.dataset.tab;
+          sync();
+        }));
+
+        return { sync, tab: () => tab };
+      })();
+
+      window.eyeColorMusic.pca = pcaMode;
 
 
       // --------------------------------------------------
@@ -1825,11 +2072,8 @@
       // 2. UPLOAD AN IMAGE
       // --------------------------------------------------
 
-      $("up").addEventListener("change", event => {
-        const file = event.target.files?.[0];
-
-        if (!file) return;
-
+      // Draw any image (file or URL) into the canvas, fitted and centred.
+      function loadImageIntoCanvas(src, revokeAfter) {
         const image = new Image();
 
         image.onload = () => {
@@ -1852,7 +2096,17 @@
             height
           );
 
-          URL.revokeObjectURL(image.src);
+          // Give the PCA tab the full-size image and where it sits on the canvas.
+          if (pcaMode) {
+            pcaMode.setSource(image, {
+              x: (cv.width - width) / 2,
+              y: (cv.height - height) / 2,
+              w: width,
+              h: height
+            });
+          }
+
+          if (revokeAfter) URL.revokeObjectURL(image.src);
 
           status(
             "Image loaded. Hover over it or look at it to identify colors."
@@ -1863,8 +2117,24 @@
           status("Could not load that image. Please choose another image.");
         };
 
-        image.src = URL.createObjectURL(file);
+        image.src = src;
+      }
+
+      $("up").addEventListener("change", event => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        loadImageIntoCanvas(URL.createObjectURL(file), true);
       });
+
+      // Opened from Street Art Sonification: load that artwork automatically.
+      // Only same-site paths (starting with "/") are accepted.
+      const artworkParam = new URLSearchParams(location.search).get("image");
+
+      if (artworkParam && artworkParam.startsWith("/") && !artworkParam.startsWith("//")) {
+        loadImageIntoCanvas(artworkParam, false);
+      }
 
       // --------------------------------------------------
       // 3. COLOR NAME REFERENCE PALETTE
@@ -2054,6 +2324,7 @@
           $("nm").textContent = "(look at the canvas)";
           $("hx").textContent = "";
           music.feed(null);
+          if (pcaMode) pcaMode.feed(null);
           return;
         }
 
@@ -2066,6 +2337,9 @@
 
         const radius = Number($("rad").value);
         const ring = $("gz");
+
+        // PCA Omnisphere tab (does nothing unless that tab is playing).
+        if (pcaMode) pcaMode.feed(x, y, radius);
 
         ring.style.display = $("showgz").checked
           ? "block"
