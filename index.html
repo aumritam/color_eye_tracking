@@ -3,38 +3,232 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Eye-Tracking Color Identifier</title>
+  <title>Color Eye Tracking</title>
 
   <!-- WebGazer 3.5.3, stored locally so the page works without the internet -->
   <script src="./webgazer.js"></script>
 
-  <!-- PCA Omnisphere tab: Anjali's PCA analysis (ported) + the PCA chord instrument -->
+  <!-- PCA Pad tab: Anjali's PCA analysis (ported) + the PCA chord instrument -->
   <script src="./pca-omnisphere.js"></script>
 
   <style>
+    /* ==========================================================
+       Look: a gallery. White walls, the artwork hung like a framed
+       print, wall-label type, hairlines instead of boxes, and one
+       accent (International Klein Blue) used only for "on".
+       Every id the script uses is unchanged.
+       ========================================================== */
     :root {
       color-scheme: light;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --wall: #f5f5f2;
+      --paper: #ffffff;
+      --ink: #161616;
+      --soft: #5f5f5b;
+      --line: #d9d9d4;
+      --klein: #1f3fd1;
+      --glow: #161616;          /* set live to the color under your gaze */
+      --sans: "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --serif: "Iowan Old Style", "Palatino", "Book Antiqua", Georgia, serif;
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--ink);
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
-      margin: 16px;
-      background: #fff;
-      color: #171717;
+      margin: 0;
+      background: var(--wall);
+      padding: 40px 48px 56px;
     }
 
     #gc {
-      max-width: 1400px;
+      max-width: 1440px;
       margin: 0 auto;
     }
 
+    /* ---------- title and wall label ---------- */
+
+    .deck-top {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--ink);
+      margin-bottom: 18px;
+    }
+
+    .wordmark .eye { display: none; }
+
+    .wordmark h1 {
+      margin: 0;
+      font-size: 34px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+    }
+
+    .wordmark p {
+      margin: 6px 0 0;
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 17px;
+      color: var(--soft);
+    }
+
+    /* the color you are looking at, written like a wall label */
+    .seeing {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 280px;
+    }
+
+    #sw {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 44px;
+      background: var(--paper);
+      outline: 1px solid var(--line);
+      outline-offset: 3px;
+      transition: background 0.2s;
+    }
+
+    #nm {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+
+    #hx {
+      font-size: 12px;
+      color: var(--soft);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+    }
+
+    /* ---------- controls ---------- */
+
+    .keys {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 30px;
+    }
+
+    .keys .gap { flex: 1 1 12px; }
+
+    .ico { display: none; }
+
+    button,
+    .key {
+      font: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 16px;
+      border-radius: 0;
+      border: 1px solid var(--ink);
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    button:hover:not(:disabled),
+    .key:hover {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    button:focus-visible,
+    .key:focus-within,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--klein);
+      outline-offset: 3px;
+    }
+
+    button:disabled {
+      color: #a3a39e;
+      border-color: var(--line);
+      cursor: not-allowed;
+    }
+
+    #go.primary { background: var(--ink); color: var(--paper); }
+    #go.primary:hover { background: var(--klein); border-color: var(--klein); }
+    #go.stop { background: var(--paper); color: #9b1c1c; border-color: #9b1c1c; }
+    #go.stop:hover { background: #9b1c1c; color: var(--paper); }
+
+    #music.musicon { background: var(--klein); border-color: var(--klein); color: var(--paper); }
+
+    .key.upload input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    #upname {
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* checkboxes as slim switches */
+    .switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--soft);
+      cursor: pointer;
+      user-select: none;
+      margin-left: 8px;
+    }
+
+    .switch input {
+      appearance: none;
+      width: 30px;
+      height: 16px;
+      border: 1px solid var(--ink);
+      border-radius: 8px;
+      position: relative;
+      cursor: pointer;
+      margin: 0;
+      background: transparent;
+    }
+
+    .switch input::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--ink);
+      transition: transform 0.15s;
+    }
+
+    .switch input:checked { background: var(--ink); }
+    .switch input:checked::after { background: var(--paper); transform: translateX(14px); }
+
+    /* ---------- layout ---------- */
+
     .panel {
       display: flex;
-      gap: 20px;
+      gap: 48px;
       align-items: flex-start;
     }
 
@@ -44,338 +238,74 @@
     }
 
     .sidebar {
-      flex: 0 0 300px;
-      background: #f7f9fa;
-      padding: 16px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
+      flex: 0 0 340px;
       font-size: 14px;
-      line-height: 1.5;
     }
 
-    .sidebar h3 {
-      margin-top: 0;
-      font-size: 16px;
-      border-bottom: 2px solid #ccc;
-      padding-bottom: 6px;
+    /* ---------- the artwork, hung on the wall ---------- */
+
+    .screen {
+      background: var(--paper);
+      padding: 28px;
+      box-shadow:
+        0 1px 2px rgba(22, 22, 22, 0.06),
+        0 24px 48px -28px rgba(22, 22, 22, 0.35);
     }
 
-    .sidebar ol {
-      padding-left: 20px;
-      margin: 8px 0;
-    }
-
-    .sidebar li {
-      margin-bottom: 8px;
-    }
-
-    .bar {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      margin: 8px 0;
-      flex-wrap: wrap;
-    }
-
-    #sw {
-      width: 56px;
-      height: 56px;
-      flex: 0 0 56px;
-      border-radius: 10px;
-      border: 1px solid #888;
-      background: #fff;
-    }
-
-    #nm {
-      font-size: 22px;
-      font-weight: 650;
-    }
-
-    #hx {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      color: #666;
-      font-size: 13px;
-    }
-
-    button {
-      padding: 8px 14px;
-      border-radius: 8px;
-      border: 1px solid #888;
-      cursor: pointer;
-      background: #f4f4f4;
-      font-weight: 650;
-    }
-
-    button.primary {
-      background: #e8f0fe;
-      color: #1a73e8;
-      border-color: #1a73e8;
-    }
-
-    button.stop {
-      background: #fdecea;
-      color: #b3261e;
-      border-color: #b3261e;
-    }
-
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    label {
-      font-size: 13px;
-      font-weight: 500;
-    }
-
-    #st {
-      font-size: 13px;
-      color: #a52222;
-      margin: 8px 0;
-      font-weight: 650;
-      overflow-wrap: anywhere;
-    }
-
-    canvas {
+    canvas#cv {
       display: block;
       width: 100%;
       height: auto;
-      border-radius: 8px;
-      border: 1px solid #bbb;
+      background: var(--paper);
       touch-action: manipulation;
     }
 
-
-    .scanline {
-      position: fixed;
-      width: 2px;
-      margin-left: -1px;
-      background: rgba(255, 255, 255, 0.9);
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
-      pointer-events: none;
-      z-index: 5;
-      display: none;
-    }
-    .scanline .sd {
-      position: absolute;
-      left: 50%;
-      width: 12px;
-      height: 12px;
-      margin: -6px 0 0 -6px;
-      border-radius: 50%;
-      border: 2px solid #fff;
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
-      transition: transform 0.15s;
-    }
-    .scanline .sd.hit { transform: scale(1.8); }
-    .xylo { display: flex; gap: 3px; margin: 8px 0; height: 54px; }
-    .xylo .xk {
-      flex: 1; border-radius: 4px; background: #eef; border: 1px solid #99c;
-      font-size: 10px; text-align: center; padding-top: 34px; color: #446;
-      transition: background 0.3s;
-    }
-    .xylo .xk.hit { background: #7c5cff; color: #fff; }
-    .scanrow { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
-    .scanrow button { padding: 6px 12px; white-space: nowrap; }
-    .scanrow button.on { background: #7c5cff; color: #fff; border-color: #7c5cff; }
-
-    .dot {
-      position: fixed;
-      padding: 0;
-      width: 26px;
-      height: 26px;
-      margin: -13px 0 0 -13px;
-      border-radius: 50%;
-      background: #e53935;
-      border: 3px solid #fff;
-      box-shadow: 0 0 0 1px #000;
-      cursor: pointer;
-      z-index: 99999;
+    #viz {
+      display: block;
+      width: 100%;
+      height: 34px;
+      margin-top: 18px;
+      background: transparent;
     }
 
-    #gz {
-      position: fixed;
-      border-radius: 50%;
-      border: 2px solid #000;
-      background: rgba(255, 255, 255, 0.35);
-      pointer-events: none;
-      z-index: 99998;
-      display: none;
-      transform: translate(-50%, -50%);
-    }
-
-    /* Camera preview, pinned to the bottom-right corner.
-       Width and height are NOT set here on purpose: WebGazer sizes the video,
-       face mesh and green guide box itself (see PREVIEW_W / PREVIEW_H in the
-       script), and overriding that is what pushed the green box off to the side. */
-    #webgazerVideoContainer {
-      position: fixed !important;
-      top: auto !important;
-      left: auto !important;
-      bottom: 12px !important;
-      right: 12px !important;
-      border-radius: 8px !important;
-      outline: 2px solid #333 !important;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-      z-index: 99990 !important;
-      overflow: hidden !important;
-    }
-
-    .sidebar summary {
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      border-bottom: 2px solid #ccc;
-      padding-bottom: 6px;
-    }
-
-    button.musicon {
-      background: #fdeaf3;
-      color: #b4236b;
-      border-color: #b4236b;
-    }
-
-    .music {
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 14px;
-    }
-
-    .music[hidden] {
-      display: none;
-    }
-
-    .chordname {
-      font-size: 26px;
-      font-weight: 700;
-      line-height: 1.15;
-    }
-
-    .chordnotes {
-      font-size: 13px;
-      color: #333;
-      margin: 2px 0 4px;
-    }
-
-    /* Music mode tabs: Omnichord | PCA Omnisphere */
-    .tabs { display: flex; gap: 4px; margin: 4px 0 10px; border-bottom: 2px solid #ddd; }
-    .tabs button {
-      border: 1px solid #ccc; border-bottom: none; border-radius: 6px 6px 0 0;
-      padding: 6px 12px; background: #f4f4f4; color: #555; margin-bottom: -2px;
-    }
-    .tabs button[aria-selected="true"] {
-      background: #fff; color: #b4236b; border-color: #b4236b;
-      border-bottom: 2px solid #fff;
-    }
-    .tabpane[hidden], .scanrow[hidden] { display: none; }
-
-    /* PCA Omnisphere */
-    .pca-overlay { position: fixed; pointer-events: none; z-index: 4; border-radius: 8px; }
-    .pca-overlay[hidden] { display: none; }
-    .pcachord { font-size: 24px; font-weight: 700; line-height: 1.15; }
-    .pcabars { margin: 10px 0 6px; display: grid; gap: 4px; }
-    .pcabar { display: grid; grid-template-columns: 62px 1fr 46px; align-items: center; gap: 6px; font-size: 12px; }
-    .pcalabel { font-weight: 650; color: #444; }
-    .pcatrack { position: relative; height: 12px; background: #eee; border-radius: 6px; overflow: hidden; }
-    .pcafill { position: absolute; top: 0; bottom: 0; left: 50%; width: 0; transition: width 0.12s, left 0.12s; }
-    .pcazero { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #888; }
-    .pcaval { font-variant-numeric: tabular-nums; text-align: right; color: #333; }
-    .pcacontrols { display: grid; gap: 6px; margin: 8px 0; }
-    .pcacontrols select { width: 100%; margin-top: 2px; }
-
-    .keyrow { display: flex; gap: 6px; margin-top: 4px; }
-    .keyrow select { flex: 1; }
-
-    .chordgrid {
-      display: grid;
-      grid-template-columns: 38px repeat(7, 1fr);
-      gap: 2px;
-      margin: 10px 0 6px;
-      touch-action: none;
-      user-select: none;
-    }
-
-    .chordgrid .ch {
-      font-size: 8px;
-      text-align: center;
-      color: #555;
-    }
-
-    .chordgrid .rl {
-      font-size: 9px;
+    /* the caption line under the frame */
+    .lcd {
       display: flex;
-      align-items: center;
-      color: #555;
-      font-weight: 650;
+      align-items: baseline;
+      gap: 12px;
+      order: 2;
+      padding: 14px 2px 0;
+      min-height: 40px;
     }
 
-    .chordgrid .cell {
-      height: 22px;
-      padding: 0;
-      border-radius: 4px;
-      border: 1px solid rgba(0, 0, 0, 0.18);
-      font-size: 10px;
-      font-weight: 700;
-      color: #111;
-      line-height: 1;
+    .screen { display: flex; flex-direction: column; }
+    .screen > #cv { order: 0; }
+    .screen > #viz { order: 1; }
+    .screen > .lcd { order: 2; }
+
+    .lcd .led {
+      width: 7px;
+      height: 7px;
+      flex: 0 0 7px;
+      border-radius: 50%;
+      background: var(--glow);
+      transform: translateY(-2px);
     }
 
-    .chordgrid .cell.on {
-      outline: 2px solid #111;
-      transform: scale(1.12);
-      position: relative;
-      z-index: 1;
-    }
-
-    .plate {
-      display: flex;
-      gap: 2px;
-      height: 46px;
-      margin: 8px 0;
-      touch-action: none;
-      user-select: none;
-    }
-
-    .pkey {
+    #st {
       flex: 1;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding-bottom: 3px;
-      border-radius: 4px;
-      border: 1px solid #aab;
-      background: #eef0ff;
-      color: #445;
-      font-size: 9px;
-      font-weight: 650;
-    }
-
-    .pkey.hit {
-      background: #7a5cff;
-      border-color: #5a3fe0;
-      color: #fff;
-    }
-
-    .musiccontrols {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .musiccontrols label {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
       font-size: 13px;
-      font-weight: 650;
+      color: var(--soft);
+      overflow-wrap: anywhere;
     }
 
-    .musiccontrols select {
-      font-size: 13px;
-      padding: 4px;
+    /* ---------- sliders ---------- */
+
+    .faders {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px 40px;
+      margin-top: 30px;
     }
 
     .slider {
@@ -384,146 +314,477 @@
       gap: 2px;
       min-width: 220px;
       flex: 1 1 220px;
-      max-width: 340px;
-    }
-
-    .slider input {
-      width: 100%;
+      max-width: 360px;
     }
 
     .slabel {
       font-size: 14px;
-      font-weight: 650;
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
     }
+
+    .slabel b {
+      font-weight: 500;
+      color: var(--soft);
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      appearance: none;
+      width: 100%;
+      height: 1px;
+      background: var(--ink);
+      margin: 14px 0 10px;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--paper);
+      border: 1px solid var(--ink);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--paper);
+      border: 1px solid var(--ink);
+    }
+
+    input[type="range"]:hover::-webkit-slider-thumb { background: var(--ink); }
+
+    .hint {
+      color: var(--soft);
+      font-size: 13px;
+    }
+
+    .camera-tip {
+      margin: 22px 0 0;
+      max-width: 70ch;
+    }
+
+    /* ---------- head-position note (shown by the script) ---------- */
 
     .pill {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 999px;
       font-size: 12px;
-      font-weight: 650;
-      margin: 4px 0 0;
+      white-space: nowrap;
+      padding-left: 10px;
+      border-left: 2px solid currentColor;
     }
 
-    .pill[hidden] {
+    .pill[hidden] { display: none; }
+    .pill.ok   { color: #2c6e49; }
+    .pill.warn { color: #8a5a00; }
+    .pill.bad,
+    .pill.lost { color: #9b1c1c; }
+
+    /* ---------- overlays on the canvas (positioned by the script) ---------- */
+
+    .scanline {
+      position: fixed;
+      width: 1px;
+      background: var(--paper);
+      box-shadow: 0 0 0 1px rgba(22, 22, 22, 0.55);
+      pointer-events: none;
+      z-index: 5;
       display: none;
     }
 
-    .pill.ok {
-      background: #e6f4ea;
-      color: #137333;
+    .scanline .sd {
+      position: absolute;
+      left: 50%;
+      width: 10px;
+      height: 10px;
+      margin: -5px 0 0 -5px;
+      border-radius: 50%;
+      border: 1px solid var(--paper);
+      box-shadow: 0 0 0 1px rgba(22, 22, 22, 0.6);
+      transition: transform 0.15s;
     }
 
-    .pill.warn {
-      background: #fef7e0;
-      color: #a35200;
+    .scanline .sd.hit { transform: scale(1.7); }
+
+    .dot {
+      position: fixed;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      margin: -12px 0 0 -12px;
+      border-radius: 50%;
+      background: #c8102e;      /* the gallery "red dot" */
+      border: 3px solid var(--paper);
+      box-shadow: 0 0 0 1px var(--ink);
+      cursor: pointer;
+      z-index: 99999;
     }
 
-    .pill.bad,
-    .pill.lost {
-      background: #fdecea;
-      color: #b3261e;
+    .dot:hover { background: #8f0b20; }
+
+    #gz {
+      position: fixed;
+      border-radius: 50%;
+      border: 1.5px solid var(--paper);
+      box-shadow: 0 0 0 1px rgba(22, 22, 22, 0.7);
+      background: rgba(255, 255, 255, 0.12);
+      pointer-events: none;
+      z-index: 99998;
+      display: none;
+      transform: translate(-50%, -50%);
     }
 
-    .hint {
-      color: #555;
-      font-size: 12px;
+    .pca-overlay { position: fixed; pointer-events: none; z-index: 4; }
+    .pca-overlay[hidden] { display: none; }
+
+    /* Camera preview, pinned to the bottom-right corner. Width and height
+       are left to WebGazer (see PREVIEW_W / PREVIEW_H in the script). */
+    #webgazerVideoContainer {
+      position: fixed !important;
+      top: auto !important;
+      left: auto !important;
+      bottom: 16px !important;
+      right: 16px !important;
+      border-radius: 0 !important;
+      outline: 1px solid var(--ink) !important;
+      outline-offset: 4px !important;
+      box-shadow: 0 16px 32px -16px rgba(22, 22, 22, 0.4) !important;
+      z-index: 99990 !important;
+      overflow: hidden !important;
     }
 
-    @media (max-width: 850px) {
-      .panel {
-        flex-direction: column;
-      }
+    /* ---------- the music panel ---------- */
 
-      .sidebar {
-        flex: 1 1 auto;
-        width: 100%;
-      }
+    .music {
+      border-top: 1px solid var(--ink);
+      padding-top: 14px;
+      margin-bottom: 34px;
+    }
+
+    .music[hidden] { display: none; }
+
+    .music h3 {
+      margin: 0 0 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--soft);
+      letter-spacing: 0.02em;
+    }
+
+    /* the two instruments: text tabs with an underline */
+    .tabs {
+      display: flex;
+      gap: 24px;
+      margin: 0 0 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tabs button {
+      border: 0;
+      padding: 0 0 10px;
+      margin-bottom: -1px;
+      font-size: 16px;
+      color: var(--soft);
+      border-bottom: 2px solid transparent;
+    }
+
+    .tabs button:hover:not(:disabled) { background: transparent; color: var(--ink); }
+
+    .tabs button[aria-selected="true"] {
+      color: var(--ink);
+      border-bottom-color: var(--klein);
+    }
+
+    .tabpane[hidden],
+    .scanrow[hidden],
+    .hint[hidden] { display: none; }
+
+    /* the chord, written like an artwork title */
+    .chordname,
+    .pcachord {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 34px;
+      font-weight: 400;
+      line-height: 1.1;
+    }
+
+    .chordnotes {
+      font-size: 14px;
+      margin: 6px 0 2px;
+    }
+
+    #chordwhy,
+    #pane-pca [data-role="why"] {
+      margin: 10px 0 0;
+      padding-left: 12px;
+      border-left: 1px solid var(--line);
+      line-height: 1.55;
+    }
+
+    #chordwhy:empty,
+    #pane-pca [data-role="why"]:empty { display: none; }
+
+    .chordgrid {
+      display: grid;
+      grid-template-columns: 40px repeat(7, 1fr);
+      gap: 3px;
+      margin: 20px 0 6px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .chordgrid .ch,
+    .chordgrid .rl {
+      font-size: 11px;
+      color: var(--soft);
+    }
+
+    .chordgrid .ch { text-align: center; }
+    .chordgrid .rl { display: flex; align-items: center; }
+
+    .chordgrid .cell {
+      height: 24px;
+      padding: 0;
+      justify-content: center;
+      border: 0;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink);
+      filter: saturate(0.55);
+    }
+
+    .chordgrid .cell:hover:not(:disabled) { color: var(--ink); filter: none; }
+
+    .chordgrid .cell.on {
+      filter: none;
+      outline: 2px solid var(--ink);
+      outline-offset: 1px;
+      z-index: 1;
+    }
+
+    .plate { display: flex; gap: 2px; height: 46px; margin: 8px 0; touch-action: none; user-select: none; }
+    .pkey { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px; border: 1px solid var(--line); font-size: 9px; }
+    .pkey.hit { background: var(--klein); color: var(--paper); }
+
+    .xylo { display: flex; gap: 2px; margin: 14px 0; height: 46px; }
+    .xylo[hidden] { display: none; }
+    .xylo .xk {
+      flex: 1;
+      border-bottom: 1px solid var(--ink);
+      font-size: 10px;
+      text-align: center;
+      padding-top: 28px;
+      color: var(--soft);
+      transition: background 0.3s, color 0.3s;
+    }
+    .xylo .xk.hit { background: var(--klein); color: var(--paper); }
+
+    .musiccontrols {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+
+    .musiccontrols label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    select {
+      font: inherit;
+      font-size: 14px;
+      color: var(--ink);
+      padding: 7px 8px;
+      border-radius: 0;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      cursor: pointer;
+    }
+
+    select:hover { border-color: var(--ink); }
+
+    .keyrow { display: flex; gap: 6px; margin-top: 6px; }
+    .keyrow select { flex: 1; }
+    #keysource { font-weight: 400; }
+
+    .scanrow { display: flex; align-items: center; gap: 12px; }
+    .scanrow button { white-space: nowrap; }
+    .scanrow button.on { background: var(--klein); border-color: var(--klein); color: var(--paper); }
+
+    /* ---------- PCA Pad panel (built by pca-omnisphere.js) ---------- */
+
+    .pcabars { margin: 18px 0 8px; display: grid; gap: 8px; }
+    .pcabar { display: grid; grid-template-columns: 70px 1fr 46px; align-items: center; gap: 10px; font-size: 13px; }
+    .pcalabel { color: var(--soft); font-variant-numeric: tabular-nums; }
+    .pcatrack { position: relative; height: 8px; background: transparent; border-bottom: 1px solid var(--line); overflow: visible; }
+    .pcafill { position: absolute; top: 0; bottom: 0; left: 50%; width: 0; transition: width 0.12s, left 0.12s; }
+    .pcazero { position: absolute; top: -3px; bottom: -3px; left: 50%; width: 1px; background: var(--ink); }
+    .pcaval { font-variant-numeric: tabular-nums; text-align: right; }
+    .pcacontrols { display: grid; gap: 12px; margin: 18px 0 10px; }
+    .pcacontrols label { display: flex; flex-direction: column; gap: 4px; font-weight: 500; }
+    .pcacontrols .pcacheck { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; }
+    .pcacontrols .pcacheck input { accent-color: var(--ink); }
+
+    /* ---------- how to play ---------- */
+
+    #instr {
+      border-top: 1px solid var(--ink);
+      padding-top: 14px;
+    }
+
+    #instr summary {
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    #instr summary::-webkit-details-marker { display: none; }
+    #instr summary::after { content: "+"; font-weight: 400; font-size: 20px; }
+    #instr[open] summary::after { content: "–"; }
+
+    #instr ol {
+      padding-left: 22px;
+      margin: 16px 0 10px;
+    }
+
+    #instr li {
+      margin-bottom: 12px;
+      max-width: 62ch;
+      line-height: 1.55;
+    }
+
+    #instr li::marker {
+      font-family: var(--serif);
+      font-style: italic;
+      color: var(--soft);
+    }
+
+    #instr strong { font-weight: 600; }
+    #version { margin-top: 12px; font-size: 12px; }
+
+    @media (max-width: 900px) {
+      body { padding: 20px 16px 40px; }
+      .panel { flex-direction: column; gap: 32px; }
+      .sidebar { flex: 1 1 auto; width: 100%; }
+      .screen { padding: 14px; }
+      .wordmark h1 { font-size: 28px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
     }
   </style>
 </head>
 
 <body>
   <div id="gc">
+
+    <header class="deck-top">
+      <div class="wordmark">
+        <span class="eye" aria-hidden="true"></span>
+        <div>
+          <h1>Color Eye Tracking</h1>
+        </div>
+      </div>
+
+      <div class="seeing" aria-live="polite">
+        <div id="sw" aria-label="Current color preview"></div>
+        <div>
+          <div id="nm">Hover over a color to identify it</div>
+          <div id="hx"></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="keys">
+      <button id="go" class="primary"><span class="ico" aria-hidden="true">◉</span> Start eye tracking</button>
+      <button id="tomouse" disabled>Back to mouse tracking</button>
+      <button id="recal"><span class="ico" aria-hidden="true">⟲</span> Recalibrate</button>
+      <button id="music" type="button" aria-pressed="false">♪ Music mode: Off</button>
+
+      <label class="key upload">
+        <span class="ico" aria-hidden="true">＋</span>
+        <span id="upname">Add an image</span>
+        <input type="file" id="up" accept="image/*" aria-label="Choose an image">
+      </label>
+
+      <span class="gap"></span>
+
+      <label class="switch">
+        <input type="checkbox" id="mouse" checked>
+        Mouse test mode
+      </label>
+
+      <label class="switch">
+        <input type="checkbox" id="showgz" checked>
+        Gaze ring
+      </label>
+    </div>
+
     <div class="panel">
 
       <main class="main-area">
-        <div class="bar">
-          <div id="sw" aria-label="Current color preview"></div>
-
-          <div>
-            <div id="nm">Hover over a color to identify it</div>
-            <div id="hx"></div>
+        <div class="screen">
+          <div class="lcd">
+            <span class="led" aria-hidden="true"></span>
+            <div id="st" role="status" aria-live="polite">
+              Mouse test mode is on. Hover over the picture to hear and name its colors.
+            </div>
+            <div id="head" class="pill" hidden></div>
           </div>
+
+          <div id="scanline" class="scanline"></div>
+          <canvas
+            id="cv"
+            width="910"
+            height="520"
+            aria-label="Color palette and uploaded image canvas">
+          </canvas>
+
+          <canvas id="viz" width="910" height="56" aria-hidden="true"></canvas>
         </div>
 
-        <div class="bar">
-          <button id="go" class="primary">Start eye tracking</button>
-
-          <button id="tomouse" disabled>Back to mouse tracking</button>
-
-          <button id="recal">Recalibrate</button>
-
-          <button id="music" type="button" aria-pressed="false">♪ Music mode: Off</button>
-
-          <label>
-            Image:
-            <input type="file" id="up" accept="image/*">
-          </label>
-
-          <label>
-            <input type="checkbox" id="mouse" checked>
-            Mouse test mode
-          </label>
-
-          <label>
-            <input type="checkbox" id="showgz" checked>
-            Gaze ring
-          </label>
-        </div>
-
-        <div class="bar">
+        <div class="faders">
           <label class="slider">
-            <span class="slabel">Friction: <b id="fricv">50</b></span>
+            <span class="slabel">Friction <b id="fricv">50</b></span>
             <input type="range" id="fric" min="0" max="100" value="50">
             <span class="hint">Left = quick but shaky. Right = steady but slow.</span>
           </label>
 
           <label class="slider">
-            <span class="slabel">Radius: <b id="radv">45</b> px</span>
+            <span class="slabel">Ring size <b><span id="radv">45</span> px</b></span>
             <input type="range" id="rad" min="20" max="100" value="45">
             <span class="hint">How big an area is averaged for the color.</span>
           </label>
         </div>
 
-        <div id="head" class="pill" hidden></div>
-
-        <div id="st" role="status" aria-live="polite">
-          Mouse test mode is active. Hover over the canvas to test color naming.
-        </div>
-
-        <div id="scanline" class="scanline"></div>
-        <canvas
-          id="cv"
-          width="910"
-          height="520"
-          aria-label="Color palette and uploaded image canvas">
-        </canvas>
-
-        <p class="hint">
-          To use eye tracking, click Start eye tracking, allow camera access,
-          and complete calibration. After calibration, just look at the
-          canvas.
+        <p class="hint camera-tip">
+          Eye tracking needs your camera: press Start eye tracking, allow the
+          camera, then click each red dot five times while looking at it.
         </p>
       </main>
 
       <aside class="sidebar">
         <section id="musicpanel" class="music" hidden>
-          <h3>♪ Music mode</h3>
+          <h3>Music mode</h3>
 
           <div class="tabs" role="tablist" aria-label="Instrument">
             <button type="button" role="tab" id="tab-omni" data-tab="omni" aria-selected="true" aria-controls="pane-omni">Omnichord</button>
-            <button type="button" role="tab" id="tab-pca" data-tab="pca" aria-selected="false" aria-controls="pane-pca">PCA Omnisphere</button>
+            <button type="button" role="tab" id="tab-pca" data-tab="pca" aria-selected="false" aria-controls="pane-pca">PCA Pad</button>
           </div>
 
           <div id="pane-omni" class="tabpane" role="tabpanel" aria-labelledby="tab-omni">
@@ -574,73 +835,68 @@
         </section>
 
         <details id="instr" open>
-        <summary>Instructions</summary>
+          <summary>How to play</summary>
 
-        <ol>
-          <li>
-            <strong>Test the colors:</strong>
-            Move your mouse over the palette.
-          </li>
+          <ol>
+            <li>
+              <strong>Try it with the mouse.</strong>
+              Move over the picture. The display at the top names the color
+              under the ring.
+            </li>
 
-          <li>
-            <strong>Start eye tracking:</strong>
-            Click the blue button and allow camera access.
-          </li>
+            <li>
+              <strong>Turn on your eyes.</strong>
+              Press <em>Start eye tracking</em> and allow the camera.
+            </li>
 
-          <li>
-            <strong>Calibrate:</strong>
-            Look directly at each red dot and click it five times.
-            Keep your head relatively still.
-          </li>
+            <li>
+              <strong>Calibrate.</strong>
+              Look straight at each red dot and click it five times. Keep
+              your head still.
+            </li>
 
-          <li>
-            <strong>Test your gaze:</strong>
-            Once calibration finishes, look around the canvas.
-          </li>
+            <li>
+              <strong>Look around.</strong>
+              The ring follows your gaze. If it is off, look at a spot and
+              click it: every click teaches the tracker. Raise Friction for
+              a steadier ring, lower it for a quicker one.
+            </li>
 
-          <li>
-            <strong>Fix a wrong spot:</strong>
-            If the ring is off, look at a spot and click it. Every click
-            teaches the tracker. The Friction slider makes the ring
-            steadier (higher) or quicker (lower).
-          </li>
+            <li>
+              <strong>Switch or stop any time.</strong>
+              <em>Back to mouse tracking</em> compares against your cursor
+              (the same key switches back to your eyes). <em>Stop eye
+              tracking</em> pauses, and resuming keeps your calibration.
+            </li>
 
-          <li>
-            <strong>Switch or stop:</strong>
-            Use <em>Back to mouse tracking</em> to compare against your
-            cursor (the same button switches back to your eyes), or
-            <em>Stop eye tracking</em> to pause. Resuming keeps your
-            calibration.
-          </li>
-          <li>
-            <strong>Music mode:</strong>
-            Click <em>Music mode</em> to turn colors into chords. Where you
-            look (or hover with the mouse) decides the chord: everything stays in the artwork's key
-            (picked by the AI). Hue picks which note of the scale the chord
-            starts on (red = the home note), saturation picks how many notes,
-            and red / green / blue picks the shape: normal chord / sus / open. It works with eye tracking or mouse mode.
-          </li>
-          <li>
-            <strong>PCA Omnisphere tab:</strong>
-            In Music mode, open the <em>PCA Omnisphere</em> tab. The image is
-            cut into about 200 patches and each one is boiled down to 5
-            numbers (principal components) using Anjali's PCA method. The
-            grid shows PC1: blue = calm, red = busy. The patches under your
-            gaze ring pick the chord: PC1 = which chord of the key (busier =
-            more tense), PC2 = how many notes, PC3 = the shape. All 5 PCs set
-            the pad's tone colour. Switch <em>Sound</em> to hear Anjali's
-            original overtone tones instead.
-          </li>
-        </ol>
+            <li>
+              <strong>Make music.</strong>
+              Press <em>Music mode</em>. On the <em>Omnichord</em>, the color
+              you look at picks the chord in the artwork's key: hue picks the
+              note it starts on, saturation picks how many notes, and the
+              strongest of red, green or blue picks the shape (normal, sus or
+              open).
+            </li>
 
-        <p class="hint">
-          Webcam access requires HTTPS or a supported localhost address.
-          Eye-tracking accuracy depends on lighting, camera position,
-          and calibration.
-        </p>
+            <li>
+              <strong>Try the PCA Pad.</strong>
+              Switch to the <em>PCA Pad</em> tab. The picture is cut into
+              about 200 patches and each one is boiled down to 5 numbers
+              using Anjali's PCA method. The grid shows the first number:
+              blue = calm, red = busy. Under your gaze, PC1 picks which chord
+              (busier = more tense), PC2 how many notes, PC3 the shape, and
+              all five shape the tone. Switch <em>Sound</em> to hear Anjali's
+              original overtone tones.
+            </li>
+          </ol>
 
-        <p class="hint" id="version">
-          Version 2026-11-12: PCA Omnisphere tab (Anjali's PCA + gaze-driven chords). 2026-11-05: music locked to the artwork's key (picked by the AI). 2026-10-29h: music mode (every color sounds; scanner plays all rows in the chord's scale), friction slider, 120-click memory, head check</p>
+          <p class="hint">
+            The camera only works on localhost or HTTPS. Accuracy depends on
+            lighting, where the camera sits, and calibration.
+          </p>
+
+          <p class="hint" id="version">
+            Version 2026-11-12c: gallery look, live sound strip, PCA Pad tab (Anjali's PCA + gaze-driven chords). 2026-11-05: music locked to the artwork's key (picked by the AI). 2026-10-29h: music mode, friction slider, 120-click memory, head check</p>
         </details>
       </aside>
 
@@ -1255,7 +1511,7 @@
         let on = false;
         let ctx = null;
         let synth = null;
-        let paused = false;       // true while the PCA Omnisphere tab is playing instead
+        let paused = false;       // true while the PCA Pad tab is playing instead
 
         let strumMode = "off";   // "loop", "change" or "off"
 
@@ -1945,7 +2201,7 @@
           }
         });
 
-        // The PCA Omnisphere tab takes over the sound: hush the Omnichord.
+        // The PCA Pad tab takes over the sound: hush the Omnichord.
         function setPaused(value) {
           paused = Boolean(value);
 
@@ -1979,7 +2235,7 @@
       };
 
       // --------------------------------------------------
-      // 0e. PCA OMNISPHERE TAB
+      // 0e. PCA PAD TAB
       // --------------------------------------------------
       // Anjali's PCA (pca-omnisphere.js) turns the image into a grid of
       // patches with 5 principal components each. In this tab the gaze ring
@@ -2036,6 +2292,94 @@
       })();
 
       window.eyeColorMusic.pca = pcaMode;
+
+      // --------------------------------------------------
+      // 0f. THE SOUND STRIP UNDER THE SCREEN
+      // --------------------------------------------------
+      // Bars that bounce with whatever is playing (Omnichord, scanner or
+      // PCA Pad), drawn in the color you are looking at. When nothing
+      // plays, a row of small dots rests there.
+
+      const glow = (() => {
+        const viz = $("viz");
+        const g = viz.getContext("2d");
+        const root = document.documentElement;
+        let color = "#8c6bff";
+        let analyser = null;
+        let bins = null;
+        const BARS = 48;
+        const heights = new Float32Array(BARS);
+
+        function setColor(hex) {
+          if (hex === color) return;
+          color = hex;
+          root.style.setProperty("--glow", hex);
+        }
+
+        // Listen to the synth's output (not connected to the speakers).
+        function connect() {
+          if (analyser || !music.context() || !music.synth()) return;
+          analyser = music.context().createAnalyser();
+          analyser.fftSize = 2048;
+          analyser.smoothingTimeConstant = 0.82;
+          music.synth().master.connect(analyser);
+          bins = new Uint8Array(analyser.frequencyBinCount);
+        }
+
+        function fit() {
+          const ratio = window.devicePixelRatio || 1;
+          const w = Math.round(viz.clientWidth * ratio);
+          const h = Math.round(viz.clientHeight * ratio);
+          if (viz.width !== w || viz.height !== h) { viz.width = w; viz.height = h; }
+        }
+
+        function draw() {
+          fit();
+          const w = viz.width, h = viz.height;
+          g.clearRect(0, 0, w, h);
+
+          const playing = music.isOn();
+          if (playing) connect();
+          if (analyser && playing) analyser.getByteFrequencyData(bins);
+
+          const step = w / BARS;
+          const bar = Math.max(2, step * 0.28);
+
+          for (let i = 0; i < BARS; i++) {
+            // Bars are spaced like a piano (70 Hz on the left to 6 kHz on
+            // the right), so every part of the music gets its share.
+            let level = 0;
+            if (analyser && playing) {
+              const hz = 70 * Math.pow(6000 / 70, i / (BARS - 1));
+              const bin = Math.round(hz / (music.context().sampleRate / analyser.fftSize));
+              level = Math.pow(bins[Math.min(bins.length - 1, bin)] / 255, 0.8);
+            }
+            heights[i] += (level - heights[i]) * 0.35;
+
+            const barH = Math.max(bar, heights[i] * (h - 8));
+            const x = i * step + (step - bar) / 2;
+            const y = (h - barH) / 2;
+
+            g.globalAlpha = 0.25 + 0.75 * Math.min(1, heights[i] * 1.6);
+            g.fillStyle = color;
+            g.beginPath();
+            g.roundRect(x, y, bar, barH, bar / 2);
+            g.fill();
+          }
+
+          g.globalAlpha = 1;
+          requestAnimationFrame(draw);
+        }
+
+        requestAnimationFrame(draw);
+        return { setColor };
+      })();
+
+      // Show the chosen image's name on the upload key.
+      $("up").addEventListener("change", event => {
+        const file = event.target.files?.[0];
+        if (file) $("upname").textContent = file.name;
+      });
 
 
       // --------------------------------------------------
@@ -2291,6 +2635,8 @@
         $("hx").textContent =
           `${hex}   rgb(${red}, ${green}, ${blue})`;
 
+        glow.setColor(hex);
+
         // Music mode (does nothing unless it is switched on).
         music.feed({ r: red, g: green, b: blue });
       }
@@ -2338,7 +2684,7 @@
         const radius = Number($("rad").value);
         const ring = $("gz");
 
-        // PCA Omnisphere tab (does nothing unless that tab is playing).
+        // PCA Pad tab (does nothing unless that tab is playing).
         if (pcaMode) pcaMode.feed(x, y, radius);
 
         ring.style.display = $("showgz").checked

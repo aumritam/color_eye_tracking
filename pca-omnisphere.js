@@ -1,5 +1,5 @@
 /**
- * PCA Omnisphere: the eye tracker plays the artwork's PCA space as chords.
+ * PCA Pad: the eye tracker plays the artwork's PCA space as chords.
  *
  * Two parts live in this file.
  *
@@ -13,7 +13,9 @@
  *    It runs in the browser so it works on any image you drop onto the
  *    canvas, with no server round trip.
  *
- * 2. PCAOmni -- the "Omnisphere" instrument for the Colour Eye Tracking app.
+ * 2. PCAOmni -- the "PCA Pad" instrument for the Colour Eye Tracking app (a pad
+ *    synth built with Web Audio; the name "Omnisphere" in this file name is
+ *    only a nod to that style of lush pad, none of its sounds are used).
  *    The gaze ring averages the principal components of the patches under it.
  *      PC1 (how busy / edgy the area is) -> which chord of the key
  *              (calm = home chord, busy = tense chords like V and vii)
@@ -329,7 +331,7 @@
   if (typeof document === "undefined") return; // Node (tests): analysis only.
 
   // ==================================================================
-  // 2. THE PCA OMNISPHERE INSTRUMENT
+  // 2. THE PCA PAD INSTRUMENT
   // ==================================================================
 
   // Calm -> tense, so a busier area of the artwork pulls the harmony away
@@ -720,7 +722,7 @@
       }
     }
 
-    // One "Omnisphere" pad note: two detuned oscillators shaped by the PCA
+    // One PCA Pad note: two detuned oscillators shaped by the PCA
     // overtone wave, spread left and right, through a slowly breathing
     // low-pass filter, into the Omnichord's reverb.
     function startVoice(midi, now) {
@@ -809,7 +811,7 @@
       <div class="pcacontrols">
         <label>Sound
           <select data-role="sound">
-            <option value="omni" selected>Omnisphere chords</option>
+            <option value="omni" selected>Pad chords (PCA picks the chord)</option>
             <option value="overtones">Overtones (Anjali's original)</option>
           </select>
         </label>
